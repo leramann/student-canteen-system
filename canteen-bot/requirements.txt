@@ -1,0 +1,5 @@
+aiogram==3.31.0
+aiohttp==3.14.5
+aiofiles==25.1.0
+PyMySQL==1.2.3
+python-dotenv

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Столовая — меню</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <header id="app-header">
+        <h1>🍽 Меню столовой</h1>
+        <p id="greeting"></p>
+    </header>
+
+    <main>
+        <nav id="categories"></nav>
+        <section id="menu"></section>
+
+        <aside id="cart" class="hidden">
+            <h2>Корзина</h2>
+            <ul id="cart-items"></ul>
+            <div class="cart-total">Итого: <span id="cart-total">0</span> ₽</div>
+            <button id="checkout-btn">Оформить предзаказ</button>
+        </aside>
+    </main>
+
+    <button id="ai-toggle" title="Спросить у шефа">👨‍🍳</button>
+    <div id="ai-panel" class="hidden">
+        <div id="ai-header">
+            <span>Повар Баба-Жуля</span>
+            <button id="ai-close">✕</button>
+        </div>
+        <div id="ai-messages"></div>
+        <form id="ai-form">
+            <input type="text" id="ai-input" placeholder="Что посоветуешь до 300₽?" autocomplete="off">
+            <button type="submit">→</button>
+        </form>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
