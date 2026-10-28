@@ -4,11 +4,11 @@ services:
     volumes:
       - .:/app
     environment:
-      - BOT_TOKEN=8952302076:AAGorkYBGlHnudifLUzZyLdMTwF13Mj-zWk
+      - BOT_TOKEN=${BOT_TOKEN}
       - DB_HOST=db
       - DB_PORT=3306
       - DB_USER=root
-      - DB_PASSWORD=secret_password
+      - DB_PASSWORD=${DB_PASSWORD}
       - DB_NAME=canteen_db
     depends_on:
       - db
@@ -16,7 +16,7 @@ services:
   db:
     image: cr.yandex/mirror/library/mariadb:10.6
     environment:
-      MYSQL_ROOT_PASSWORD: secret_password
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
       MYSQL_DATABASE: canteen_db
     ports:
       - "3307:3306"
