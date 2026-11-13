@@ -7,8 +7,8 @@ from ai_service import get_ai_recommendation
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": int(os.getenv("DB_PORT", "3306")),
-    "user": os.environ["DB_USER"],
-    "password": os.environ["DB_PASSWORD"],
+    "user": os.environ.get("DB_USER", "root"),
+    "password": os.environ.get("DB_PASSWORD", ""),
     "database": os.getenv("DB_NAME", "canteen_db"),
     "charset": "utf8mb4",
     "cursorclass": pymysql.cursors.DictCursor,
@@ -16,8 +16,8 @@ DB_CONFIG = {
 
 FRONTEND_DIR = Path(__file__).parent / "frontend"
 
-
 def fetch_menu_from_db():
+    # Заглушка с картинками для сервера
     return [
         {"id": 1, "category": "Первые блюда", "name": "Борщ", "description": "Классический с говядиной", "price": 150, "image_url": "https://images.unsplash.com/photo-1621644835763-e6c4a63ec7ea?w=200&h=200&fit=crop", "calories": 320},
         {"id": 2, "category": "Первые блюда", "name": "Суп-лапша", "description": "Куриный бульон", "price": 120, "image_url": "https://images.unsplash.com/photo-1547592180-85f173990554?w=200&h=200&fit=crop", "calories": 210},
@@ -27,10 +27,8 @@ def fetch_menu_from_db():
         {"id": 6, "category": "Десерты", "name": "Сырники", "description": "Со сгущёнкой", "price": 130, "image_url": "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=200&h=200&fit=crop", "calories": 340},
     ]
 
-
 async def index_handler(request: web.Request) -> web.Response:
     return web.FileResponse(FRONTEND_DIR / "index.html")
-
 
 async def menu_handler(request: web.Request) -> web.Response:
     try:
@@ -38,7 +36,6 @@ async def menu_handler(request: web.Request) -> web.Response:
     except Exception as e:
         return web.json_response({"error": str(e)}, status=500)
     return web.json_response({"items": items})
-
 
 async def ai_handler(request: web.Request) -> web.Response:
     data = await request.json()
@@ -51,15 +48,10 @@ async def ai_handler(request: web.Request) -> web.Response:
         return web.json_response({"error": str(e)}, status=500)
     return web.json_response({"answer": answer})
 
-async def health_handler(request: web.Request) -> web.Response:
-    return web.json_response({"status": "ok", "message": "Server is running"})
-
-
 def create_app() -> web.Application:
-    app = web.Application()  # <--- ВОТ ЭТА СТРОЧКА ДОЛЖНА БЫТЬ ОБЯЗАТЕЛЬНО!
+    app = web.Application()
     app.router.add_get("/", index_handler)
     app.router.add_get("/api/menu", menu_handler)
     app.router.add_post("/api/ai/recommend", ai_handler)
     app.router.add_static("/static/", FRONTEND_DIR)
-    app.router.add_get("/health", health_handler)
     return app

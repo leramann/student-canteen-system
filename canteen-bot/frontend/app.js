@@ -8,27 +8,14 @@ if (tg) {
 const state = {
     items: [],
     cart: [],
-    orders: [], // <-- добавь эту строчку
+    orders: [], // Массив для заказов
     activeCategory: 'all',
 };
 
-// ---------- Утилиты ----------
 function fmtPrice(n) { return `${Number(n).toFixed(0)} ₽`; }
-
 function getUserName() {
     const u = tg?.initDataUnsafe?.user;
     return u?.first_name || 'друг';
-}
-
-// Красивые картинки (если нет своей, берем по названию)
-function getDishImage(name) {
-    const n = name.toLowerCase();
-    if (n.includes('борщ')) return 'https://images.pexels.com/photos/13015498/pexels-photo-13015498.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&fit=crop';
-    if (n.includes('плов')) return 'https://images.pexels.com/photos/12737657/pexels-photo-12737657.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&fit=crop';
-    if (n.includes('котлета')) return 'https://images.pexels.com/photos/12419160/pexels-photo-12419160.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&fit=crop';
-    if (n.includes('компот') || n.includes('чай')) return 'https://images.pexels.com/photos/128865/pexels-photo-128865.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&fit=crop';
-    // Если блюдо не найдено, ставим общую красивую картинку
-    return 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=200&h=200&fit=crop'; 
 }
 
 // ---------- Загрузка меню ----------
@@ -40,79 +27,15 @@ async function loadMenu() {
         renderCategories();
         renderMenu();
     } catch (err) {
-    // Добавляем массив для заказов в наш state (найди в самом верху const state и добавь orders: [])
-// Если не найдешь, просто вставь этот блок вместо старой кнопки checkout-btn
-
-    document.getElementById('checkout-btn').onclick = async () => {
-    if (state.cart.length === 0) return;
-
-    const total = state.cart.reduce((s, i) => s + i.price * i.qty, 0);
-    
-    // Создаем новый заказ
-    const newOrder = {
-        id: Math.floor(Math.random() * 9000) + 1000,
-        items: JSON.parse(JSON.stringify(state.cart)), // копируем корзину
-        total: total,
-        status: 'new' // начальный статус
-    };
-
-    // Добавляем заказ в список (если массива нет, создаем)
-    if (!state.orders) state.orders = [];
-    state.orders.unshift(newOrder); 
-
-    // Очищаем корзину
-    state.cart = [];
-    renderCart();
-    
-    // Переключаем на вкладку заказов
-    switchView('orders');
-    
-    // Оповещаем пользователя
-    if (tg) tg.showAlert('Заказ #' + newOrder.id + ' успешно оформлен!');
-    else alert('Заказ #' + newOrder.id + ' оформлен!');
-
-    // Отправляем в Телеграм (чтобы бот прислал сообщение)
-    if (tg) {
-        tg.sendData(JSON.stringify({ action: 'order', items: newOrder.items, total }));
-    }
-
-    // ЗАПУСКАЕМ СИМУЛЯЦИЮ СМЕНЫ СТАТУСОВ
-    simulateStatusChange(newOrder.id);
-};
-
-// Функция для смены статусов каждые 5 секунд
-    function simulateStatusChange(orderId) {
-    const statuses = ['new', 'accepted', 'cooking', 'ready', 'picked_up'];
-    let currentIndex = 0;
-
-    const interval = setInterval(() => {
-        currentIndex++;
-        if (currentIndex >= statuses.length) {
-            clearInterval(interval); // Останавливаем, когда дошли до "Выдан"
-            return;
-        }
-
-        // Находим наш заказ и меняем статус
-        const order = state.orders.find(o => o.id === orderId);
-        if (order) {
-            order.status = statuses[currentIndex];
-            loadOrders(); // Перерисовываем карточки
-        }
-    }, 5000); // 5000 мс = 5 секунд
-}
-
-// Обнови функцию loadOrders (она должна брать данные из state.orders, а не из заглушки)
-async function loadOrders() {
-    if (!state.orders) state.orders = [];
-    renderOrders(state.orders);
-}
+        document.getElementById('menu').textContent = 'Ошибка загрузки меню';
     }
 }
 
 function renderCategories() {
     const cats = ['all', ...new Set(state.items.map(i => i.category || 'Другое'))];
-    const labels = { all: 'Всё' };
+    const labels = { all: 'Все' };
     const nav = document.getElementById('categories');
+    if (!nav) return;
     nav.innerHTML = '';
     cats.forEach(cat => {
         const btn = document.createElement('button');
@@ -129,6 +52,7 @@ function renderCategories() {
 
 function renderMenu() {
     const menu = document.getElementById('menu');
+    if (!menu) return;
     menu.innerHTML = '';
     const filtered = state.activeCategory === 'all'
         ? state.items
@@ -137,10 +61,11 @@ function renderMenu() {
     filtered.forEach(item => {
         const card = document.createElement('div');
         card.className = 'card';
-        const imgSrc = item.image_url || getDishImage(item.name);
+        // Берем картинку из API, либо ставим заглушку
+        const imgSrc = item.image_url || 'https://via.placeholder.com/150';
         
         card.innerHTML = `
-            <img src="${imgSrc}" alt="${item.name}" onerror="this.src='https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=200&h=200&fit=crop'">
+            <img src="${imgSrc}" alt="${item.name}">
             <div class="card-body">
                 <div class="card-name">${item.name}</div>
                 <div class="card-desc">${item.description || ''}</div>
@@ -168,6 +93,7 @@ function renderCart() {
     const cart = document.getElementById('cart');
     const list = document.getElementById('cart-items');
     const total = document.getElementById('cart-total');
+    if (!cart) return;
 
     if (state.cart.length === 0) {
         cart.classList.add('hidden');
@@ -185,19 +111,115 @@ function renderCart() {
     total.textContent = sum.toFixed(0);
 }
 
+// ---------- Оформление заказа и Статусы ----------
 document.getElementById('checkout-btn').onclick = () => {
     if (state.cart.length === 0) return;
-    const order = state.cart.map(i => `${i.name} × ${i.qty}`).join('\n');
     const total = state.cart.reduce((s, i) => s + i.price * i.qty, 0);
+    
+    // Создаем заказ
+    const newOrder = {
+        id: Math.floor(Math.random() * 9000) + 1000,
+        items: JSON.parse(JSON.stringify(state.cart)),
+        total: total,
+        status: 'new'
+    };
+
+    state.orders.unshift(newOrder);
+    state.cart = [];
+    renderCart();
+    
+    // Переключаемся на вкладку заказов
+    switchView('orders');
+    
+    // Отправляем в Телеграм (чтобы бот прислал сообщение)
     if (tg) {
-        tg.sendData(JSON.stringify({ action: 'order', items: state.cart, total }));
-        tg.close();
+        tg.sendData(JSON.stringify({ action: 'order', items: newOrder.items, total }));
     } else {
-        alert(`Заказ:\n${order}\n\nИтого: ${total} ₽`);
+        alert(`Заказ #${newOrder.id} оформлен!`);
     }
+
+    // ЗАПУСКАЕМ СМЕНУ СТАТУСОВ
+    simulateStatus(newOrder.id);
 };
 
-// ---------- ИИ-помощник (Шеф-повар) ----------
+function simulateStatus(orderId) {
+    const statuses = ['new', 'accepted', 'cooking', 'ready', 'picked_up'];
+    let step = 0;
+    const interval = setInterval(() => {
+        step++;
+        if (step >= statuses.length) { clearInterval(interval); return; }
+        const order = state.orders.find(o => o.id === orderId);
+        if (order) {
+            order.status = statuses[step];
+            renderOrders(state.orders); // Обновляем экран
+        }
+    }, 5000); // Каждые 5 секунд
+}
+
+// ---------- Вкладки и Рендер заказов ----------
+const tabMenu = document.getElementById('tab-menu');
+const tabOrders = document.getElementById('tab-orders');
+if (tabMenu) tabMenu.onclick = () => switchView('menu');
+if (tabOrders) tabOrders.onclick = () => switchView('orders');
+
+function switchView(view) {
+    const menuSection = document.getElementById('menu');
+    const ordersSection = document.getElementById('orders-section');
+    
+    if (view === 'menu') {
+        menuSection.classList.remove('hidden');
+        ordersSection.classList.add('hidden');
+        tabMenu.classList.add('active');
+        tabOrders.classList.remove('active');
+    } else {
+        menuSection.classList.add('hidden');
+        ordersSection.classList.remove('hidden');
+        tabMenu.classList.remove('active');
+        tabOrders.classList.add('active');
+        renderOrders(state.orders);
+    }
+}
+
+function renderOrders(orders) {
+    const list = document.getElementById('orders-list');
+    if (!list) return;
+    
+    if (orders.length === 0) {
+        list.innerHTML = '<p>У вас пока нет заказов.</p>';
+        return;
+    }
+
+    list.innerHTML = orders.map(order => {
+        const statusClass = `status-${order.status || 'new'}`;
+        const statusLabels = {
+            'new': 'Новый', 'accepted': 'Принят', 'cooking': 'Готовится',
+            'ready': 'Готов', 'picked_up': 'Выдан'
+        };
+        
+        const itemsHtml = order.items.map(i => `
+            <div class="order-item">
+                <span>${i.name} × ${i.qty}</span>
+                <span>${fmtPrice(i.price * i.qty)}</span>
+            </div>
+        `).join('');
+
+        return `
+            <div class="order-card ${statusClass}">
+                <div class="order-header">
+                    <span>Заказ #${order.id}</span>
+                    <span class="order-status">${statusLabels[order.status] || order.status}</span>
+                </div>
+                ${itemsHtml}
+                <div class="order-item" style="margin-top:8px; font-weight:bold; color: var(--text);">
+                    <span>Итого:</span>
+                    <span>${fmtPrice(order.total)}</span>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// ---------- ИИ-помощник ----------
 const aiToggle = document.getElementById('ai-toggle');
 const aiPanel  = document.getElementById('ai-panel');
 const aiClose  = document.getElementById('ai-close');
@@ -205,8 +227,8 @@ const aiForm   = document.getElementById('ai-form');
 const aiInput  = document.getElementById('ai-input');
 const aiMsgs   = document.getElementById('ai-messages');
 
-aiToggle.onclick = () => aiPanel.classList.toggle('hidden');
-aiClose.onclick  = () => aiPanel.classList.add('hidden');
+if (aiToggle) aiToggle.onclick = () => aiPanel.classList.toggle('hidden');
+if (aiClose) aiClose.onclick  = () => aiPanel.classList.add('hidden');
 
 function addMsg(text, from) {
     const div = document.createElement('div');
@@ -217,26 +239,28 @@ function addMsg(text, from) {
     return div;
 }
 
-aiForm.onsubmit = async (e) => {
-    e.preventDefault();
-    const q = aiInput.value.trim();
-    if (!q) return;
-    addMsg(q, 'user');
-    aiInput.value = '';
-    const thinking = addMsg('Шеф думает...', 'bot');
+if (aiForm) {
+    aiForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const q = aiInput.value.trim();
+        if (!q) return;
+        addMsg(q, 'user');
+        aiInput.value = '';
+        const thinking = addMsg('Шеф думает...', 'bot');
 
-    try {
-        const res = await fetch('/api/ai/recommend', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query: q, cart: state.cart }),
-        });
-        const data = await res.json();
-        thinking.textContent = data.answer || data.error || 'Шеф устал, попробуйте позже :(';
-    } catch (err) {
-        thinking.textContent = 'Ошибка связи с шефом: ' + err.message;
-    }
-};
+        try {
+            const res = await fetch('/api/ai/recommend', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: q, cart: state.cart }),
+            });
+            const data = await res.json();
+            thinking.textContent = data.answer || 'Шеф устал :(';
+        } catch (err) {
+            thinking.textContent = 'Ошибка связи';
+        }
+    };
+}
 
 // ---------- Старт ----------
 document.getElementById('greeting').textContent = `Привет, ${getUserName()}!`;
