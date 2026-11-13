@@ -16,7 +16,7 @@ from aiogram.types import (
 
 from web_server import create_app
 
-TOKEN = os.environ["BOT_TOKEN"]
+TOKEN = "8952302076:AAGorkYBGlHnudifLUzZyLdMTwF13Mj-zWk"
 WEBAPP_URL = os.environ["WEBAPP_URL"]
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
 WEB_PORT = int(os.getenv("WEB_PORT", "8080"))

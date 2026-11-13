@@ -18,22 +18,14 @@ FRONTEND_DIR = Path(__file__).parent / "frontend"
 
 
 def fetch_menu_from_db():
-    conn = pymysql.connect(**DB_CONFIG)
-    try:
-        with conn.cursor() as cur:
-            cur.execute(
-                "SELECT item_id as id, category_id as category, name, description, price, "
-                "NULL as image_url, NULL as calories FROM menu_items WHERE is_available = 1"
-            )
-            items = cur.fetchall()
-            
-            # Превращаем цену из Decimal в обычное число (float)
-            for item in items:
-                item['price'] = float(item['price'])
-                
-            return items
-    finally:
-        conn.close()
+    return [
+        {"id": 1, "category": "Первые блюда", "name": "Борщ", "description": "Классический с говядиной", "price": 150, "image_url": "", "calories": 320},
+        {"id": 2, "category": "Первые блюда", "name": "Суп-лапша", "description": "Куриный бульон", "price": 120, "image_url": "", "calories": 210},
+        {"id": 3, "category": "Вторые блюда", "name": "Плов", "description": "Со свининой и морковью", "price": 180, "image_url": "", "calories": 420},
+        {"id": 4, "category": "Вторые блюда", "name": "Котлета по-киевски", "description": "С картофельным пюре", "price": 220, "image_url": "", "calories": 480},
+        {"id": 5, "category": "Напитки", "name": "Компот", "description": "Из сухофруктов", "price": 50, "image_url": "", "calories": 90},
+        {"id": 6, "category": "Десерты", "name": "Сырники", "description": "Со сгущёнкой", "price": 130, "image_url": "", "calories": 340},
+    ]
 
 
 async def index_handler(request: web.Request) -> web.Response:
