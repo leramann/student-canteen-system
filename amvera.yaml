@@ -1,0 +1,10 @@
+meta:
+  environment: python
+  toolchain:
+    name: pip
+    version: "3.11"
+build:
+  requirementsPath: canteen-bot/requirements.txt
+run:
+  scriptName: canteen-bot/main.py
+  containerPort: 80
