@@ -8,6 +8,7 @@ if (tg) {
 const state = {
     items: [],
     cart: [],
+    orders: [], // <-- добавь эту строчку
     activeCategory: 'all',
 };
 
@@ -39,7 +40,72 @@ async function loadMenu() {
         renderCategories();
         renderMenu();
     } catch (err) {
-        document.getElementById('menu').textContent = 'Ошибка загрузки меню: ' + err.message;
+    // Добавляем массив для заказов в наш state (найди в самом верху const state и добавь orders: [])
+// Если не найдешь, просто вставь этот блок вместо старой кнопки checkout-btn
+
+    document.getElementById('checkout-btn').onclick = async () => {
+    if (state.cart.length === 0) return;
+
+    const total = state.cart.reduce((s, i) => s + i.price * i.qty, 0);
+    
+    // Создаем новый заказ
+    const newOrder = {
+        id: Math.floor(Math.random() * 9000) + 1000,
+        items: JSON.parse(JSON.stringify(state.cart)), // копируем корзину
+        total: total,
+        status: 'new' // начальный статус
+    };
+
+    // Добавляем заказ в список (если массива нет, создаем)
+    if (!state.orders) state.orders = [];
+    state.orders.unshift(newOrder); 
+
+    // Очищаем корзину
+    state.cart = [];
+    renderCart();
+    
+    // Переключаем на вкладку заказов
+    switchView('orders');
+    
+    // Оповещаем пользователя
+    if (tg) tg.showAlert('Заказ #' + newOrder.id + ' успешно оформлен!');
+    else alert('Заказ #' + newOrder.id + ' оформлен!');
+
+    // Отправляем в Телеграм (чтобы бот прислал сообщение)
+    if (tg) {
+        tg.sendData(JSON.stringify({ action: 'order', items: newOrder.items, total }));
+    }
+
+    // ЗАПУСКАЕМ СИМУЛЯЦИЮ СМЕНЫ СТАТУСОВ
+    simulateStatusChange(newOrder.id);
+};
+
+// Функция для смены статусов каждые 5 секунд
+    function simulateStatusChange(orderId) {
+    const statuses = ['new', 'accepted', 'cooking', 'ready', 'picked_up'];
+    let currentIndex = 0;
+
+    const interval = setInterval(() => {
+        currentIndex++;
+        if (currentIndex >= statuses.length) {
+            clearInterval(interval); // Останавливаем, когда дошли до "Выдан"
+            return;
+        }
+
+        // Находим наш заказ и меняем статус
+        const order = state.orders.find(o => o.id === orderId);
+        if (order) {
+            order.status = statuses[currentIndex];
+            loadOrders(); // Перерисовываем карточки
+        }
+    }, 5000); // 5000 мс = 5 секунд
+}
+
+// Обнови функцию loadOrders (она должна брать данные из state.orders, а не из заглушки)
+async function loadOrders() {
+    if (!state.orders) state.orders = [];
+    renderOrders(state.orders);
+}
     }
 }
 

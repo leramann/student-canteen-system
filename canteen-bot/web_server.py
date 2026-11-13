@@ -19,12 +19,12 @@ FRONTEND_DIR = Path(__file__).parent / "frontend"
 
 def fetch_menu_from_db():
     return [
-        {"id": 1, "category": "Первые блюда", "name": "Борщ", "description": "Классический с говядиной", "price": 150, "image_url": "", "calories": 320},
-        {"id": 2, "category": "Первые блюда", "name": "Суп-лапша", "description": "Куриный бульон", "price": 120, "image_url": "", "calories": 210},
-        {"id": 3, "category": "Вторые блюда", "name": "Плов", "description": "Со свининой и морковью", "price": 180, "image_url": "", "calories": 420},
-        {"id": 4, "category": "Вторые блюда", "name": "Котлета по-киевски", "description": "С картофельным пюре", "price": 220, "image_url": "", "calories": 480},
-        {"id": 5, "category": "Напитки", "name": "Компот", "description": "Из сухофруктов", "price": 50, "image_url": "", "calories": 90},
-        {"id": 6, "category": "Десерты", "name": "Сырники", "description": "Со сгущёнкой", "price": 130, "image_url": "", "calories": 340},
+        {"id": 1, "category": "Первые блюда", "name": "Борщ", "description": "Классический с говядиной", "price": 150, "image_url": "https://images.unsplash.com/photo-1621644835763-e6c4a63ec7ea?w=200&h=200&fit=crop", "calories": 320},
+        {"id": 2, "category": "Первые блюда", "name": "Суп-лапша", "description": "Куриный бульон", "price": 120, "image_url": "https://images.unsplash.com/photo-1547592180-85f173990554?w=200&h=200&fit=crop", "calories": 210},
+        {"id": 3, "category": "Вторые блюда", "name": "Плов", "description": "Со свининой и морковью", "price": 180, "image_url": "https://images.unsplash.com/photo-1512058564366-18510be2db19?w=200&h=200&fit=crop", "calories": 420},
+        {"id": 4, "category": "Вторые блюда", "name": "Котлета по-киевски", "description": "С картофельным пюре", "price": 220, "image_url": "https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=200&h=200&fit=crop", "calories": 480},
+        {"id": 5, "category": "Напитки", "name": "Компот", "description": "Из сухофруктов", "price": 50, "image_url": "https://images.unsplash.com/photo-1513558161293-cdaf765ed2fd?w=200&h=200&fit=crop", "calories": 90},
+        {"id": 6, "category": "Десерты", "name": "Сырники", "description": "Со сгущёнкой", "price": 130, "image_url": "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=200&h=200&fit=crop", "calories": 340},
     ]
 
 
