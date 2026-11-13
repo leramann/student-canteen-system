@@ -62,10 +62,11 @@ function renderMenu() {
         const card = document.createElement('div');
         card.className = 'card';
         // Берем картинку из API, либо ставим заглушку
-        const imgSrc = item.image_url || 'https://via.placeholder.com/150';
+    const imgSrc = item.image_url;
+    const fallbackImg = 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=150';
         
         card.innerHTML = `
-            <img src="${imgSrc}" alt="${item.name}">
+            <img src="${imgSrc}" onerror="this.src='${fallbackImg}'" alt="${item.name}">
             <div class="card-body">
                 <div class="card-name">${item.name}</div>
                 <div class="card-desc">${item.description || ''}</div>
