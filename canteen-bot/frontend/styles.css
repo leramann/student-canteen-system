@@ -20,6 +20,32 @@ body {
 
 header h1 { margin: 0 0 4px; font-size: 22px; }
 #greeting { margin: 0 0 12px; color: var(--hint); font-size: 14px; }
+/* Стили для верхних вкладок (Меню / Мои заказы) */
+#view-tabs {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+    margin-bottom: 15px;
+}
+
+#view-tabs button {
+    flex: 1;
+    padding: 10px 15px;
+    border: 2px solid var(--btn);
+    border-radius: 10px;
+    background: transparent;
+    color: var(--btn);
+    font-weight: 600;
+    font-size: 15px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#view-tabs button.active {
+    background: var(--btn);
+    color: var(--btn-text);
+    box-shadow: 0 4px 10px rgba(230, 126, 34, 0.3);
+}
 
 #categories {
     display: flex;
@@ -178,4 +204,60 @@ header h1 { margin: 0 0 4px; font-size: 22px; }
     color: var(--btn-text);
     cursor: pointer;
     font-size: 18px;
+}
+/* --- Стили для экрана заказов --- */
+#orders-section h2 {
+    margin-bottom: 15px;
+    color: var(--text);
+}
+
+.order-card {
+    background: var(--card);
+    padding: 16px;
+    border-radius: 12px;
+    margin-bottom: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border-left: 4px solid #ccc;
+    transition: all 0.3s;
+}
+
+.order-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #eee;
+}
+
+.order-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: rgba(0,0,0,0.03);
+}
+
+/* Цветные кружочки статусов */
+.status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+}
+.dot-new { background-color: #e74c3c; box-shadow: 0 0 8px #e74c3c; } /* Красный */
+.dot-accepted { background-color: #f39c12; box-shadow: 0 0 8px #f39c12; } /* Желтый */
+.dot-cooking { background-color: #e67e22; box-shadow: 0 0 8px #e67e22; } /* Оранжевый */
+.dot-ready { background-color: #2ecc71; box-shadow: 0 0 8px #2ecc71; } /* Зеленый */
+.dot-picked_up { background-color: #3498db; box-shadow: 0 0 8px #3498db; } /* Синий */
+
+.order-item {
+    display: flex;
+    justify-content: space-between;
+    font-size: 14px;
+    color: var(--hint);
+    margin-bottom: 6px;
 }
