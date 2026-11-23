@@ -12,41 +12,63 @@
         <h1>🍽 Меню столовой</h1>
         <p id="greeting"></p>
         <div id="view-tabs">
-            <button id="tab-menu" class="active">Меню</button>
-            <button id="tab-orders">Мои заказы</button>
+            <button data-view="menu" class="active">Меню</button>
+            <button data-view="orders">Мои заказы</button>
+            <button data-view="staff" id="tab-staff" class="hidden">Заказы кухни</button>
+            <button data-view="admin-menu" id="tab-admin-menu" class="hidden">Управление меню</button>
         </div>
+        <div id="app-message" class="message hidden" role="status" aria-live="polite"></div>
     </header>
 
     <main>
-        <nav id="categories"></nav>
-        
-        <section id="menu"></section>
+        <nav id="categories" aria-label="Категории меню"></nav>
+        <section id="menu" data-section="menu" aria-label="Меню"></section>
 
-        <section id="orders-section" class="hidden">
-            <h2 style="margin-top: 10px;">Мои заказы</h2>
-            <div id="orders-list">
-                <p>Загрузка заказов...</p>
-            </div>
+        <section id="orders-section" data-section="orders" class="hidden">
+            <h2>Мои заказы</h2>
+            <div id="orders-list"><p>Загрузка заказов…</p></div>
         </section>
 
-        <aside id="cart" class="hidden">
-            <h2>Корзина</h2>
-            <ul id="cart-items"></ul>
-            <div class="cart-total">Итого: <span id="cart-total">0</span> ₽</div>
-            <button id="checkout-btn">Оформить предзаказ</button>
-        </aside>
+        <section id="staff-section" data-section="staff" class="hidden">
+            <h2>Заказы кухни</h2>
+            <p id="queue-forecast" class="forecast"></p>
+            <div id="staff-orders-list"><p>Загрузка заказов…</p></div>
+        </section>
+
+        <section id="admin-menu-section" data-section="admin-menu" class="hidden">
+            <h2>Управление меню</h2>
+            <form id="admin-menu-form" class="admin-form">
+                <label>Название<input id="menu-name" maxlength="150" required></label>
+                <label>Описание<textarea id="menu-description" maxlength="5000"></textarea></label>
+                <div class="form-grid">
+                    <label>Цена, ₽<input id="menu-price" type="number" min="0.01" step="0.01" required></label>
+                    <label>ID категории<input id="menu-category" type="number" min="1" step="1" required></label>
+                    <label>Время готовки, мин<input id="menu-prep" type="number" min="1" max="240" value="5" required></label>
+                </div>
+                <label>Ссылка на изображение<input id="menu-image" type="url" maxlength="255"></label>
+                <button id="admin-menu-submit" type="submit">Добавить блюдо</button>
+            </form>
+            <div id="admin-menu-list"></div>
+        </section>
     </main>
 
-    <button id="ai-toggle" title="Спросить у шефа">👨‍🍳</button>
+    <aside id="cart" class="hidden">
+        <h2>Корзина</h2>
+        <ul id="cart-items"></ul>
+        <div class="cart-total">Итого: <span id="cart-total">0</span> ₽</div>
+        <button id="checkout-btn">Оформить предзаказ</button>
+    </aside>
+
+    <button id="ai-toggle" title="Спросить у шефа" aria-label="Спросить у шефа">👨‍🍳</button>
     <div id="ai-panel" class="hidden">
         <div id="ai-header">
             <span>Спросить у шефа</span>
-            <button id="ai-close">✕</button>
+            <button id="ai-close" type="button" aria-label="Закрыть">✕</button>
         </div>
         <div id="ai-messages"></div>
         <form id="ai-form">
             <input type="text" id="ai-input" placeholder="Что посоветуешь до 300₽?" autocomplete="off">
-            <button type="submit">→</button>
+            <button type="submit" aria-label="Отправить">→</button>
         </form>
     </div>
 

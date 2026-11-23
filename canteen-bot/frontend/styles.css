@@ -211,6 +211,39 @@ header h1 { margin: 0 0 4px; font-size: 22px; }
     color: var(--text);
 }
 
+.message { margin: 10px 0; padding: 10px 12px; border-radius: 10px; font-size: 14px; }
+.message.info { background: #eef5ff; color: #194a7a; }
+.message.warning { background: #fff4dc; color: #714f00; }
+.message.error { background: #ffe8e6; color: #8d2118; }
+.message.success { background: #e7f7ec; color: #17632d; }
+.forecast { padding: 10px 12px; background: var(--card); border-radius: 10px; color: var(--hint); }
+.order-total { margin: 10px 0; font-weight: 700; color: var(--text); }
+.order-customer { margin: 0 0 10px; color: var(--hint); font-size: 14px; }
+.payment-placeholder { display: block; margin: 4px 0 10px; color: var(--hint); }
+.order-card > button, .status-controls button, .admin-form button, .admin-menu-row button {
+    padding: 9px 12px; border: 0; border-radius: 9px; background: var(--btn);
+    color: var(--btn-text); font-weight: 600; cursor: pointer;
+}
+.status-controls { display: flex; gap: 8px; margin-top: 10px; }
+.status-controls select, .admin-form input, .admin-form textarea {
+    width: 100%; padding: 9px 11px; border: 1px solid #dfd4ca; border-radius: 8px;
+    background: #fff; color: var(--text); font: inherit;
+}
+.admin-form { display: grid; gap: 12px; margin: 12px 0 20px; padding: 14px; border-radius: 12px; background: var(--card); }
+.admin-form label { display: grid; gap: 5px; font-weight: 600; }
+.admin-form textarea { min-height: 72px; resize: vertical; }
+.form-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.admin-menu-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; padding: 12px; border-radius: 10px; background: var(--card); }
+.admin-menu-row span { flex: 1 1 220px; }
+.admin-menu-row button:last-child { background: #b83227; }
+button:disabled { opacity: .6; cursor: wait; }
+
+@media (max-width: 560px) {
+    #view-tabs { flex-wrap: wrap; }
+    #view-tabs button { flex: 1 1 42%; }
+    .form-grid { grid-template-columns: 1fr; }
+}
+
 .order-card {
     background: var(--card);
     padding: 16px;

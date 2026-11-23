@@ -5,264 +5,472 @@ if (tg) {
     if (tg.setHeaderColor) tg.setHeaderColor('secondary_bg_color');
 }
 
-const state = {
-    items: [],
-    cart: [],
-    orders: [], // Массив для заказов
-    activeCategory: 'all',
+const state = { items: [], cart: [], orders: [], adminItems: [], editingMenuItem: null, role: null, view: 'menu', activeCategory: 'all' };
+const STATUS_LABELS = {
+    new: 'Новый', accepted: 'Принят', cooking: 'Готовится', ready: 'Готов',
+    picked_up: 'Выдан', cancelled: 'Отменён',
+};
+const NEXT_STATUSES = {
+    new: ['accepted', 'cancelled'], accepted: ['cooking', 'cancelled'],
+    cooking: ['ready'], ready: ['picked_up'], picked_up: [], cancelled: [],
 };
 
-function fmtPrice(n) { return `${Number(n).toFixed(0)} ₽`; }
-function getUserName() {
-    const u = tg?.initDataUnsafe?.user;
-    return u?.first_name || 'друг';
+function fmtPrice(value) { return `${Number(value || 0).toFixed(2).replace(/\.00$/, '')} ₽`; }
+function byId(id) { return document.getElementById(id); }
+function showMessage(message, kind = 'info') {
+    const box = byId('app-message');
+    if (!box) return;
+    box.textContent = message || '';
+    box.className = message ? `message ${kind}` : 'message hidden';
 }
 
-// ---------- Загрузка меню ----------
+async function apiFetch(path, options = {}) {
+    const headers = { ...(options.headers || {}) };
+    if (tg?.initData) headers['X-Telegram-Init-Data'] = tg.initData;
+    if (options.body && !headers['Content-Type']) headers['Content-Type'] = 'application/json';
+    const response = await fetch(path, { ...options, headers });
+    const raw = await response.text();
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch { data = { message: raw }; }
+    if (!response.ok) throw new Error(data.message || data.error || `Ошибка HTTP ${response.status}`);
+    return data;
+}
+
+function getUserName() {
+    const user = tg?.initDataUnsafe?.user;
+    return user?.first_name || 'друг';
+}
+
+async function initialize() {
+    byId('greeting').textContent = `Привет, ${getUserName()}!`;
+    if (!tg?.initData) {
+        showMessage('Откройте приложение кнопкой в Telegram, чтобы войти и оформить заказ.', 'warning');
+    } else {
+        try {
+            const data = await apiFetch('/api/me');
+            state.role = data.user.role;
+            configureTabs();
+        } catch (error) {
+            showMessage(error.message, 'error');
+        }
+    }
+    await loadMenu();
+}
+
+function configureTabs() {
+    const staffTab = byId('tab-staff');
+    const adminTab = byId('tab-admin-menu');
+    if (['staff', 'admin'].includes(state.role)) staffTab.classList.remove('hidden');
+    if (state.role === 'admin') adminTab.classList.remove('hidden');
+}
+
 async function loadMenu() {
     try {
-        const res = await fetch('/api/menu');
-        const data = await res.json();
+        const data = await apiFetch('/api/menu');
         state.items = data.items || [];
         renderCategories();
         renderMenu();
-    } catch (err) {
-        document.getElementById('menu').textContent = 'Ошибка загрузки меню';
+    } catch (error) {
+        byId('menu').textContent = 'Не удалось загрузить меню. Проверьте подключение к базе данных.';
+        showMessage(error.message, 'error');
     }
 }
 
 function renderCategories() {
-    const cats = ['all', ...new Set(state.items.map(i => i.category || 'Другое'))];
-    const labels = { all: 'Все' };
-    const nav = document.getElementById('categories');
+    const nav = byId('categories');
     if (!nav) return;
-    nav.innerHTML = '';
-    cats.forEach(cat => {
-        const btn = document.createElement('button');
-        btn.textContent = labels[cat] || cat;
-        btn.className = state.activeCategory === cat ? 'active' : '';
-        btn.onclick = () => {
-            state.activeCategory = cat;
+    nav.replaceChildren();
+    const categories = ['all', ...new Set(state.items.map(item => item.category || 'Другое'))];
+    for (const category of categories) {
+        const button = document.createElement('button');
+        button.textContent = category === 'all' ? 'Все' : category;
+        button.classList.toggle('active', state.activeCategory === category);
+        button.addEventListener('click', () => {
+            state.activeCategory = category;
             renderCategories();
             renderMenu();
-        };
-        nav.appendChild(btn);
-    });
+        });
+        nav.appendChild(button);
+    }
 }
 
 function renderMenu() {
-    const menu = document.getElementById('menu');
-    if (!menu) return;
-    menu.innerHTML = '';
-    const filtered = state.activeCategory === 'all'
-        ? state.items
-        : state.items.filter(i => String(i.category) === String(state.activeCategory));
-
-    filtered.forEach(item => {
-        const card = document.createElement('div');
+    const menu = byId('menu');
+    menu.replaceChildren();
+    const items = state.activeCategory === 'all'
+        ? state.items : state.items.filter(item => item.category === state.activeCategory);
+    if (!items.length) {
+        menu.textContent = 'В этой категории пока нет блюд.';
+        return;
+    }
+    for (const item of items) {
+        const card = document.createElement('article');
         card.className = 'card';
-        // Берем картинку из API, либо ставим заглушку
-    const imgSrc = item.image_url;
-    const fallbackImg = 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=150';
-        
-        card.innerHTML = `
-            <img src="${imgSrc}" onerror="this.src='${fallbackImg}'" alt="${item.name}">
-            <div class="card-body">
-                <div class="card-name">${item.name}</div>
-                <div class="card-desc">${item.description || ''}</div>
-                <div class="card-footer">
-                    <span class="card-price">${fmtPrice(item.price)}</span>
-                    <button data-id="${item.id}">В корзину</button>
-                </div>
-            </div>
-        `;
-        card.querySelector('button').onclick = () => addToCart(item);
+        const image = document.createElement('img');
+        image.src = item.image_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=150';
+        image.alt = item.name;
+        image.onerror = () => { image.removeAttribute('src'); };
+        const body = document.createElement('div');
+        body.className = 'card-body';
+        const name = document.createElement('div');
+        name.className = 'card-name';
+        name.textContent = item.name;
+        const description = document.createElement('div');
+        description.className = 'card-desc';
+        description.textContent = item.description || '';
+        const footer = document.createElement('div');
+        footer.className = 'card-footer';
+        const price = document.createElement('span');
+        price.className = 'card-price';
+        price.textContent = fmtPrice(item.price);
+        const addButton = document.createElement('button');
+        addButton.textContent = 'В корзину';
+        addButton.addEventListener('click', () => addToCart(item));
+        footer.append(price, addButton);
+        body.append(name, description, footer);
+        card.append(image, body);
         menu.appendChild(card);
-    });
+    }
 }
 
-// ---------- Корзина ----------
 function addToCart(item) {
-    const existing = state.cart.find(i => i.id === item.id);
+    const existing = state.cart.find(row => row.id === item.id);
     if (existing) existing.qty += 1;
     else state.cart.push({ ...item, qty: 1 });
-    if (tg) tg.HapticFeedback?.impactOccurred('light');
+    tg?.HapticFeedback?.impactOccurred('light');
     renderCart();
 }
 
 function renderCart() {
-    const cart = document.getElementById('cart');
-    const list = document.getElementById('cart-items');
-    const total = document.getElementById('cart-total');
-    if (!cart) return;
-
-    if (state.cart.length === 0) {
+    const cart = byId('cart');
+    const list = byId('cart-items');
+    list.replaceChildren();
+    if (!state.cart.length) {
         cart.classList.add('hidden');
         return;
     }
     cart.classList.remove('hidden');
-    list.innerHTML = '';
-    let sum = 0;
-    state.cart.forEach(ci => {
-        sum += ci.price * ci.qty;
+    const total = state.cart.reduce((sum, row) => sum + Number(row.price) * row.qty, 0);
+    for (const row of state.cart) {
         const li = document.createElement('li');
-        li.innerHTML = `<span>${ci.name} × ${ci.qty}</span><span>${fmtPrice(ci.price * ci.qty)}</span>`;
+        const label = document.createElement('span');
+        label.textContent = `${row.name} × ${row.qty}`;
+        const amount = document.createElement('span');
+        amount.textContent = fmtPrice(Number(row.price) * row.qty);
+        li.append(label, amount);
         list.appendChild(li);
-    });
-    total.textContent = sum.toFixed(0);
-}
-
-// ---------- Оформление заказа и Статусы ----------
-document.getElementById('checkout-btn').onclick = () => {
-    if (state.cart.length === 0) return;
-    const total = state.cart.reduce((s, i) => s + i.price * i.qty, 0);
-    
-    // Создаем заказ
-    const newOrder = {
-        id: Math.floor(Math.random() * 9000) + 1000,
-        items: JSON.parse(JSON.stringify(state.cart)),
-        total: total,
-        status: 'new'
-    };
-
-    state.orders.unshift(newOrder);
-    state.cart = [];
-    renderCart();
-    
-    // Переключаемся на вкладку заказов
-    switchView('orders');
-    
-    // Отправляем в Телеграм (чтобы бот прислал сообщение)
-    if (tg) {
-        tg.sendData(JSON.stringify({ action: 'order', items: newOrder.items, total }));
-    } else {
-        alert(`Заказ #${newOrder.id} оформлен!`);
     }
-
-    // ЗАПУСКАЕМ СМЕНУ СТАТУСОВ
-    simulateStatus(newOrder.id);
-};
-
-function simulateStatus(orderId) {
-    const statuses = ['new', 'accepted', 'cooking', 'ready', 'picked_up'];
-    let step = 0;
-    const interval = setInterval(() => {
-        step++;
-        if (step >= statuses.length) { clearInterval(interval); return; }
-        const order = state.orders.find(o => o.id === orderId);
-        if (order) {
-            order.status = statuses[step];
-            renderOrders(state.orders); // Обновляем экран
-        }
-    }, 5000); // Каждые 5 секунд
+    byId('cart-total').textContent = total.toFixed(2).replace(/\.00$/, '');
 }
 
-// ---------- Вкладки и Рендер заказов ----------
-const tabMenu = document.getElementById('tab-menu');
-const tabOrders = document.getElementById('tab-orders');
-if (tabMenu) tabMenu.onclick = () => switchView('menu');
-if (tabOrders) tabOrders.onclick = () => switchView('orders');
-
-function switchView(view) {
-    const menuSection = document.getElementById('menu');
-    const ordersSection = document.getElementById('orders-section');
-    
-    if (view === 'menu') {
-        menuSection.classList.remove('hidden');
-        ordersSection.classList.add('hidden');
-        tabMenu.classList.add('active');
-        tabOrders.classList.remove('active');
-    } else {
-        menuSection.classList.add('hidden');
-        ordersSection.classList.remove('hidden');
-        tabMenu.classList.remove('active');
-        tabOrders.classList.add('active');
-        renderOrders(state.orders);
-    }
-}
-
-function renderOrders(orders) {
-    const list = document.getElementById('orders-list');
-    if (!list) return;
-    
-    if (orders.length === 0) {
-        list.innerHTML = '<p>У вас пока нет заказов.</p>';
+async function checkout() {
+    if (!state.cart.length) return;
+    if (!tg?.initData) {
+        showMessage('Оформление заказа доступно при запуске приложения из Telegram.', 'warning');
         return;
     }
-
-    list.innerHTML = orders.map(order => {
-        const statusClass = `status-${order.status || 'new'}`;
-        const statusLabels = {
-            'new': 'Новый', 'accepted': 'Принят', 'cooking': 'Готовится',
-            'ready': 'Готов', 'picked_up': 'Выдан'
-        };
-        
-        const itemsHtml = order.items.map(i => `
-            <div class="order-item">
-                <span>${i.name} × ${i.qty}</span>
-                <span>${fmtPrice(i.price * i.qty)}</span>
-            </div>
-        `).join('');
-
-        return `
-            <div class="order-card ${statusClass}">
-                <div class="order-header">
-                    <span>Заказ #${order.id}</span>
-                    <span class="order-status">${statusLabels[order.status] || order.status}</span>
-                </div>
-                ${itemsHtml}
-                <div class="order-item" style="margin-top:8px; font-weight:bold; color: var(--text);">
-                    <span>Итого:</span>
-                    <span>${fmtPrice(order.total)}</span>
-                </div>
-            </div>
-        `;
-    }).join('');
+    const button = byId('checkout-btn');
+    button.disabled = true;
+    try {
+        const result = await apiFetch('/api/orders', {
+            method: 'POST',
+            body: JSON.stringify({ items: state.cart.map(row => ({ item_id: Number(row.id), quantity: row.qty })) }),
+        });
+        const order = result.order;
+        state.cart = [];
+        renderCart();
+        showMessage(`Заказ №${order.order_id} создан. Вы №${order.queue_number} в очереди; ожидание примерно ${order.estimated_wait_minutes} мин.`, 'success');
+        switchView('orders');
+        await loadMyOrders();
+    } catch (error) {
+        showMessage(error.message, 'error');
+    } finally {
+        button.disabled = false;
+    }
 }
 
-// ---------- ИИ-помощник ----------
-const aiToggle = document.getElementById('ai-toggle');
-const aiPanel  = document.getElementById('ai-panel');
-const aiClose  = document.getElementById('ai-close');
-const aiForm   = document.getElementById('ai-form');
-const aiInput  = document.getElementById('ai-input');
-const aiMsgs   = document.getElementById('ai-messages');
+function addOrderCard(container, order, { canRepeat = false, canChange = false } = {}) {
+    const card = document.createElement('article');
+    card.className = `order-card status-${order.status}`;
+    const header = document.createElement('div');
+    header.className = 'order-header';
+    const orderTitle = document.createElement('span');
+    orderTitle.textContent = `Заказ №${order.order_id}`;
+    const status = document.createElement('span');
+    status.className = 'order-status';
+    status.textContent = STATUS_LABELS[order.status] || order.status;
+    header.append(orderTitle, status);
+    card.appendChild(header);
+    if (canChange && order.customer_name) {
+        const customer = document.createElement('p');
+        customer.className = 'order-customer';
+        customer.textContent = order.customer_name;
+        card.appendChild(customer);
+    }
+    for (const item of order.items || []) {
+        const line = document.createElement('div');
+        line.className = 'order-item';
+        const itemName = document.createElement('span');
+        itemName.textContent = `${item.name} × ${item.quantity}`;
+        const lineTotal = document.createElement('span');
+        lineTotal.textContent = fmtPrice(item.line_total);
+        line.append(itemName, lineTotal);
+        card.appendChild(line);
+    }
+    const total = document.createElement('div');
+    total.className = 'order-total';
+    total.textContent = `Итого: ${fmtPrice(order.total_amount)}`;
+    card.appendChild(total);
+    const payment = document.createElement('small');
+    payment.className = 'payment-placeholder';
+    payment.textContent = 'Оплата через приложение появится позже.';
+    card.appendChild(payment);
+    if (order.created_at) {
+        const created = document.createElement('small');
+        created.textContent = new Date(order.created_at).toLocaleString('ru-RU');
+        card.appendChild(created);
+    }
+    if (canRepeat) {
+        const repeat = document.createElement('button');
+        repeat.textContent = 'Повторить заказ';
+        repeat.addEventListener('click', () => repeatOrder(order.order_id));
+        card.appendChild(repeat);
+    }
+    if (canChange) {
+        const allowed = NEXT_STATUSES[order.status] || [];
+        if (allowed.length) {
+            const controls = document.createElement('div');
+            controls.className = 'status-controls';
+            const select = document.createElement('select');
+            for (const value of allowed) {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = STATUS_LABELS[value];
+                select.appendChild(option);
+            }
+            const update = document.createElement('button');
+            update.textContent = 'Изменить статус';
+            update.addEventListener('click', () => updateStatus(order.order_id, select.value));
+            controls.append(select, update);
+            card.appendChild(controls);
+        }
+    }
+    container.appendChild(card);
+}
 
-if (aiToggle) aiToggle.onclick = () => aiPanel.classList.toggle('hidden');
-if (aiClose) aiClose.onclick  = () => aiPanel.classList.add('hidden');
+async function loadMyOrders() {
+    const list = byId('orders-list');
+    list.textContent = 'Загрузка заказов…';
+    try {
+        const data = await apiFetch('/api/my/orders');
+        state.orders = data.orders || [];
+        list.replaceChildren();
+        if (!state.orders.length) list.textContent = 'У вас пока нет заказов.';
+        for (const order of state.orders) addOrderCard(list, order, { canRepeat: state.role === 'student' });
+    } catch (error) {
+        list.textContent = error.message;
+    }
+}
 
-function addMsg(text, from) {
+async function repeatOrder(orderId) {
+    try {
+        const data = await apiFetch(`/api/my/orders/${orderId}/repeat`, { method: 'POST', body: '{}' });
+        showMessage(`Создан повторный заказ №${data.order.order_id}.`, 'success');
+        await loadMyOrders();
+    } catch (error) {
+        showMessage(error.message, 'error');
+    }
+}
+
+async function loadManagedOrders() {
+    const list = byId('staff-orders-list');
+    list.textContent = 'Загрузка заказов…';
+    const endpoint = state.role === 'admin' ? '/api/admin/orders' : '/api/staff/orders';
+    try {
+        const data = await apiFetch(endpoint);
+        list.replaceChildren();
+        const orders = data.orders || [];
+        if (!orders.length) list.textContent = 'Активных заказов нет.';
+        for (const order of orders) addOrderCard(list, order, { canChange: true });
+        if (state.role === 'staff' || state.role === 'admin') await loadQueueForecast();
+    } catch (error) {
+        list.textContent = error.message;
+    }
+}
+
+async function loadQueueForecast() {
+    const box = byId('queue-forecast');
+    try {
+        const data = await apiFetch('/api/staff/queue/forecast');
+        const mae = data.mae_minutes == null ? 'пока нет данных для MAE' : `MAE ${data.mae_minutes} мин`;
+        box.textContent = `Прогноз на ${data.hour}:00 — около ${data.estimated_wait_minutes} мин; ${mae} (${data.training_samples} наблюдений).`;
+    } catch (error) {
+        box.textContent = error.message;
+    }
+}
+
+async function updateStatus(orderId, status) {
+    try {
+        await apiFetch(`/api/staff/orders/${orderId}/status`, {
+            method: 'PATCH', body: JSON.stringify({ status }),
+        });
+        showMessage(`Статус заказа №${orderId} обновлён.`, 'success');
+        await loadManagedOrders();
+        if (state.role === 'student') await loadMyOrders();
+    } catch (error) {
+        showMessage(error.message, 'error');
+    }
+}
+
+async function loadAdminMenu() {
+    const list = byId('admin-menu-list');
+    list.textContent = 'Загрузка меню…';
+    try {
+        const data = await apiFetch('/api/admin/menu');
+        state.adminItems = data.items || [];
+        list.replaceChildren();
+        for (const item of state.adminItems) {
+            const row = document.createElement('div');
+            row.className = 'admin-menu-row';
+            const label = document.createElement('span');
+            label.textContent = `${item.name} — ${fmtPrice(item.price)}${item.is_available ? '' : ' (снято с продажи)'}`;
+            const toggle = document.createElement('button');
+            toggle.textContent = item.is_available ? 'Снять с продажи' : 'Вернуть в меню';
+            toggle.addEventListener('click', () => saveMenuItem(item, !item.is_available));
+            const edit = document.createElement('button');
+            edit.textContent = 'Изменить';
+            edit.addEventListener('click', () => beginEditMenuItem(item));
+            const remove = document.createElement('button');
+            remove.textContent = 'Удалить';
+            remove.addEventListener('click', () => removeMenuItem(item.id));
+            row.append(label, edit, toggle, remove);
+            list.appendChild(row);
+        }
+    } catch (error) {
+        list.textContent = error.message;
+    }
+}
+
+function menuPayloadFromForm(availability = true) {
+    return {
+        name: byId('menu-name').value.trim(),
+        description: byId('menu-description').value.trim(),
+        price: byId('menu-price').value,
+        category_id: Number(byId('menu-category').value),
+        avg_prep_time_mins: Number(byId('menu-prep').value || 5),
+        image_url: byId('menu-image').value.trim(),
+        is_available: availability,
+    };
+}
+
+async function saveMenuItem(item, availability = true) {
+    try {
+        const editing = Boolean(item);
+        const payload = item && item._fromForm ? {
+            ...menuPayloadFromForm(availability),
+        } : item ? {
+            name: item.name, description: item.description || '', price: item.price,
+            category_id: item.category_id, avg_prep_time_mins: item.avg_prep_time_mins || 5,
+            image_url: item.image_url || '', is_available: availability,
+        } : menuPayloadFromForm();
+        const itemId = editing ? (item.id || state.editingMenuItem?.id) : null;
+        await apiFetch(editing ? `/api/admin/menu/${itemId}` : '/api/admin/menu', {
+            method: editing ? 'PATCH' : 'POST', body: JSON.stringify(payload),
+        });
+        byId('admin-menu-form').reset();
+        state.editingMenuItem = null;
+        byId('admin-menu-submit').textContent = 'Добавить блюдо';
+        showMessage('Меню обновлено.', 'success');
+        await Promise.all([loadAdminMenu(), loadMenu()]);
+    } catch (error) {
+        showMessage(error.message, 'error');
+    }
+}
+
+function beginEditMenuItem(item) {
+    state.editingMenuItem = item;
+    byId('menu-name').value = item.name || '';
+    byId('menu-description').value = item.description || '';
+    byId('menu-price').value = item.price;
+    byId('menu-category').value = item.category_id;
+    byId('menu-prep').value = item.avg_prep_time_mins || 5;
+    byId('menu-image').value = item.image_url || '';
+    byId('admin-menu-submit').textContent = 'Сохранить изменения';
+    switchView('admin-menu');
+    byId('menu-name').focus();
+}
+
+async function removeMenuItem(itemId) {
+    if (!window.confirm('Удалить блюдо? Если оно есть в истории заказов, MySQL не даст удалить запись.')) return;
+    try {
+        await apiFetch(`/api/admin/menu/${itemId}`, { method: 'DELETE' });
+        showMessage('Блюдо удалено.', 'success');
+        await Promise.all([loadAdminMenu(), loadMenu()]);
+    } catch (error) {
+        showMessage(error.message, 'error');
+    }
+}
+
+function switchView(view) {
+    state.view = view;
+    for (const section of document.querySelectorAll('[data-section]')) {
+        section.classList.toggle('hidden', section.dataset.section !== view);
+    }
+    for (const button of document.querySelectorAll('[data-view]')) {
+        button.classList.toggle('active', button.dataset.view === view);
+    }
+    byId('categories').classList.toggle('hidden', view !== 'menu');
+    byId('cart').classList.toggle('hidden', view !== 'menu' || state.cart.length === 0);
+    if (view === 'orders') loadMyOrders();
+    if (view === 'staff') loadManagedOrders();
+    if (view === 'admin-menu') loadAdminMenu();
+}
+
+document.querySelectorAll('[data-view]').forEach(button => {
+    button.addEventListener('click', () => switchView(button.dataset.view));
+});
+byId('checkout-btn').addEventListener('click', checkout);
+byId('admin-menu-form').addEventListener('submit', event => {
+    event.preventDefault();
+    if (state.editingMenuItem) {
+        saveMenuItem({ ...state.editingMenuItem, _fromForm: true }, state.editingMenuItem.is_available);
+    } else {
+        saveMenuItem(null);
+    }
+});
+
+const aiToggle = byId('ai-toggle');
+const aiPanel = byId('ai-panel');
+byId('ai-toggle').addEventListener('click', () => aiPanel.classList.toggle('hidden'));
+byId('ai-close').addEventListener('click', () => aiPanel.classList.add('hidden'));
+function addMessage(text, from) {
     const div = document.createElement('div');
     div.className = `msg ${from}`;
     div.textContent = text;
-    aiMsgs.appendChild(div);
-    aiMsgs.scrollTop = aiMsgs.scrollHeight;
+    byId('ai-messages').appendChild(div);
+    byId('ai-messages').scrollTop = byId('ai-messages').scrollHeight;
     return div;
 }
+byId('ai-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const input = byId('ai-input');
+    const query = input.value.trim();
+    if (!query) return;
+    addMessage(query, 'user');
+    input.value = '';
+    const reply = addMessage('Шеф думает…', 'bot');
+    try {
+        const data = await apiFetch('/api/ai/recommend', {
+            method: 'POST', body: JSON.stringify({ query, cart: state.cart }),
+        });
+        reply.textContent = data.answer || 'Пока нет рекомендаций.';
+    } catch (error) {
+        reply.textContent = error.message || 'Ошибка связи';
+    }
+});
 
-if (aiForm) {
-    aiForm.onsubmit = async (e) => {
-        e.preventDefault();
-        const q = aiInput.value.trim();
-        if (!q) return;
-        addMsg(q, 'user');
-        aiInput.value = '';
-        const thinking = addMsg('Шеф думает...', 'bot');
-
-        try {
-            const res = await fetch('/api/ai/recommend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query: q, cart: state.cart }),
-            });
-            const data = await res.json();
-            thinking.textContent = data.answer || 'Шеф устал :(';
-        } catch (err) {
-            thinking.textContent = 'Ошибка связи';
-        }
-    };
-}
-
-// ---------- Старт ----------
-document.getElementById('greeting').textContent = `Привет, ${getUserName()}!`;
-loadMenu();
+setInterval(() => {
+    if (state.view === 'orders') loadMyOrders();
+    if (state.view === 'staff') loadManagedOrders();
+}, 5000);
+initialize();

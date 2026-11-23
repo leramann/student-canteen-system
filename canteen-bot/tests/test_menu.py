@@ -12,12 +12,14 @@ async def test_menu_returns_items(monkeypatch):
         return [
             {
                 "id": 1,
-                "category": 1,
+                "category": "Напитки",
+                "category_id": 1,
                 "name": "Чай",
                 "description": "Черный чай",
                 "price": 100.0,
                 "image_url": None,
-                "calories": None
+                "avg_prep_time_mins": 5,
+                "is_available": True
             }
         ]
 
@@ -48,7 +50,7 @@ async def test_menu_returns_items(monkeypatch):
 async def test_menu_returns_error_when_database_fails(monkeypatch):
     # Имитируем ошибку подключения к базе данных
     def fake_fetch_menu():
-        raise RuntimeError("Database unavailable")
+        raise web_server.pymysql.OperationalError("Database unavailable")
 
     monkeypatch.setattr(
         web_server,
@@ -62,11 +64,8 @@ async def test_menu_returns_error_when_database_fails(monkeypatch):
     try:
         response = await client.get("/api/menu")
 
-        assert response.status == 500
-
-        data = await response.json()
-
-        assert "error" in data
+        assert response.status == 503
+        assert "меню" in await response.text()
 
     finally:
         await client.close()
