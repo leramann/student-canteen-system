@@ -16,10 +16,12 @@ from aiogram.types import (
 
 from web_server import create_app
 
-TOKEN = "8952302076:AAGorkYBGlHnudifLUzZyLdMTwF13Mj-zWk"
+TOKEN = os.getenv("BOT_TOKEN", "")
+if not TOKEN:
+    raise RuntimeError("BOT_TOKEN is missing; set it in the local .env or hosting variables")
 WEBAPP_URL = os.environ["WEBAPP_URL"]
 WEB_HOST = os.getenv("WEB_HOST", "0.0.0.0")
-WEB_PORT = int(os.getenv("WEB_PORT", "8080"))
+WEB_PORT = int(os.getenv("WEB_PORT", os.getenv("PORT", "80")))
 
 bot = Bot(token=TOKEN, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
 dp = Dispatcher()
@@ -58,7 +60,10 @@ async def main() -> None:
     try:
         await dp.start_polling(bot)
     finally:
-        await runner.cleanup()
+        try:
+            await runner.cleanup()
+        finally:
+            await bot.session.close()
 
 
 if __name__ == "__main__":
