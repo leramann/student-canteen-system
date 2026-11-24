@@ -9,11 +9,16 @@
 </head>
 <body>
     <header id="app-header">
-        <h1>🍽 Меню столовой</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <h1>🍽 Меню столовой</h1>
+            <button id="role-toggle" style="padding: 5px 10px; border-radius: 8px; border: 1px solid var(--btn); background: transparent; color: var(--btn); font-size: 12px; cursor: pointer;">Я сотрудник</button>
+        </div>
         <p id="greeting"></p>
+        
         <div id="view-tabs">
             <button id="tab-menu" class="active">Меню</button>
             <button id="tab-orders">Мои заказы</button>
+            <button id="tab-admin" class="hidden" style="border-color: #e74c3c; color: #e74c3c;">Админ-панель</button>
         </div>
     </header>
 
@@ -26,6 +31,13 @@
             <h2 style="margin-top: 10px;">Мои заказы</h2>
             <div id="orders-list">
                 <p>Загрузка заказов...</p>
+            </div>
+        </section>
+
+        <section id="admin-section" class="hidden">
+            <h2 style="margin-top: 10px; color: #e74c3c;">Все заказы (Админ)</h2>
+            <div id="admin-orders-list">
+                <p>Заказов пока нет.</p>
             </div>
         </section>
 

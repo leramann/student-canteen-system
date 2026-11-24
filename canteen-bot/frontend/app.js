@@ -8,15 +8,36 @@ if (tg) {
 const state = {
     items: [],
     cart: [],
-    orders: [], // Массив для заказов
+    orders: JSON.parse(localStorage.getItem('canteen_orders')) || [],
+    stopList: JSON.parse(localStorage.getItem('canteen_stoplist')) || [], // Блюда, снятые с продажи
     activeCategory: 'all',
+    role: 'student', // 'student' или 'worker'
 };
 
+// ---------- Утилиты ----------
 function fmtPrice(n) { return `${Number(n).toFixed(0)} ₽`; }
 function getUserName() {
     const u = tg?.initDataUnsafe?.user;
     return u?.first_name || 'друг';
 }
+
+// ---------- Переключение ролей ----------
+const roleBtn = document.getElementById('role-toggle');
+roleBtn.onclick = () => {
+    if (state.role === 'student') {
+        state.role = 'worker';
+        roleBtn.textContent = 'Я студент';
+        document.getElementById('tab-admin').classList.remove('hidden');
+        document.getElementById('cart').classList.add('hidden'); // Скрываем корзину для сотрудника
+        switchView('admin');
+    } else {
+        state.role = 'student';
+        roleBtn.textContent = 'Я сотрудник';
+        document.getElementById('tab-admin').classList.add('hidden');
+        switchView('menu');
+    }
+    renderMenu(); // Перерисовываем меню (чтобы появились/исчезли кнопки стоп-листа)
+};
 
 // ---------- Загрузка меню ----------
 async function loadMenu() {
@@ -54,35 +75,69 @@ function renderMenu() {
     const menu = document.getElementById('menu');
     if (!menu) return;
     menu.innerHTML = '';
-    const filtered = state.activeCategory === 'all'
+    
+    // Фильтруем блюда: студенты не видят то, что в стоп-листе. Сотрудники видят всё.
+    let filtered = state.activeCategory === 'all'
         ? state.items
         : state.items.filter(i => String(i.category) === String(state.activeCategory));
+
+    if (state.role === 'student') {
+        filtered = filtered.filter(i => !state.stopList.includes(i.id));
+    }
 
     filtered.forEach(item => {
         const card = document.createElement('div');
         card.className = 'card';
-        // Берем картинку из API, либо ставим заглушку
-    const imgSrc = item.image_url;
-    const fallbackImg = 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=150';
+        const imgSrc = item.image_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=150';
         
+        // Если это сотрудник, показываем кнопку стоп-листа
+        let adminBtnHtml = '';
+        if (state.role === 'worker') {
+            const isStopped = state.stopList.includes(item.id);
+            adminBtnHtml = `<button class="stop-btn" data-id="${item.id}" style="margin-left: 10px; background: ${isStopped ? '#e74c3c' : '#f39c12'}; color: white;">
+                ${isStopped ? 'Вернуть в продажу' : 'В стоп-лист'}
+            </button>`;
+        }
+
         card.innerHTML = `
-            <img src="${imgSrc}" onerror="this.src='${fallbackImg}'" alt="${item.name}">
+            <img src="${imgSrc}" onerror="this.src='https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=150'" alt="${item.name}">
             <div class="card-body">
                 <div class="card-name">${item.name}</div>
                 <div class="card-desc">${item.description || ''}</div>
                 <div class="card-footer">
                     <span class="card-price">${fmtPrice(item.price)}</span>
-                    <button data-id="${item.id}">В корзину</button>
+                    <div style="display:flex;">
+                        ${state.role === 'student' ? `<button data-id="${item.id}">В корзину</button>` : ''}
+                        ${adminBtnHtml}
+                    </div>
                 </div>
             </div>
         `;
-        card.querySelector('button').onclick = () => addToCart(item);
+        
+        if (state.role === 'student') {
+            card.querySelector('button').onclick = () => addToCart(item);
+        } else {
+            const stopBtn = card.querySelector('.stop-btn');
+            stopBtn.onclick = () => toggleStopList(item.id);
+        }
         menu.appendChild(card);
     });
 }
 
+// ---------- Стоп-лист (для сотрудника) ----------
+function toggleStopList(itemId) {
+    if (state.stopList.includes(itemId)) {
+        state.stopList = state.stopList.filter(id => id !== itemId); // Убираем из стоп-листа
+    } else {
+        state.stopList.push(itemId); // Добавляем в стоп-лист
+    }
+    localStorage.setItem('canteen_stoplist', JSON.stringify(state.stopList));
+    renderMenu(); // Обновляем экран
+}
+
 // ---------- Корзина ----------
 function addToCart(item) {
+    if (state.role === 'worker') return; // Сотрудник не может добавить в корзину
     const existing = state.cart.find(i => i.id === item.id);
     if (existing) existing.qty += 1;
     else state.cart.push({ ...item, qty: 1 });
@@ -100,6 +155,8 @@ function renderCart() {
         cart.classList.add('hidden');
         return;
     }
+    if (state.role === 'worker') return; // Скрываем корзину для сотрудника
+
     cart.classList.remove('hidden');
     list.innerHTML = '';
     let sum = 0;
@@ -112,75 +169,66 @@ function renderCart() {
     total.textContent = sum.toFixed(0);
 }
 
-// ---------- Оформление заказа и Статусы ----------
+// ---------- Оформление заказа ----------
 document.getElementById('checkout-btn').onclick = () => {
-    if (state.cart.length === 0) return;
+    if (state.cart.length === 0 || state.role === 'worker') return;
     const total = state.cart.reduce((s, i) => s + i.price * i.qty, 0);
     
-    // Создаем заказ
     const newOrder = {
         id: Math.floor(Math.random() * 9000) + 1000,
         items: JSON.parse(JSON.stringify(state.cart)),
         total: total,
-        status: 'new'
+        status: 'new',
+        date: new Date().toLocaleString('ru-RU')
     };
 
     state.orders.unshift(newOrder);
+    localStorage.setItem('canteen_orders', JSON.stringify(state.orders));
+
     state.cart = [];
     renderCart();
-    
-    // Переключаемся на вкладку заказов
     switchView('orders');
     
-    // Отправляем в Телеграм (чтобы бот прислал сообщение)
-    if (tg) {
-        tg.sendData(JSON.stringify({ action: 'order', items: newOrder.items, total }));
-    } else {
-        alert(`Заказ #${newOrder.id} оформлен!`);
-    }
-
-    // ЗАПУСКАЕМ СМЕНУ СТАТУСОВ
-    simulateStatus(newOrder.id);
+    if (tg) tg.showAlert(`Заказ #${newOrder.id} оформлен!`);
+    else alert(`Заказ #${newOrder.id} оформлен!`);
 };
 
-function simulateStatus(orderId) {
-    const statuses = ['new', 'accepted', 'cooking', 'ready', 'picked_up'];
-    let step = 0;
-    const interval = setInterval(() => {
-        step++;
-        if (step >= statuses.length) { clearInterval(interval); return; }
-        const order = state.orders.find(o => o.id === orderId);
-        if (order) {
-            order.status = statuses[step];
-            renderOrders(state.orders); // Обновляем экран
-        }
-    }, 5000); // Каждые 5 секунд
-}
-
-// ---------- Вкладки и Рендер заказов ----------
-const tabMenu = document.getElementById('tab-menu');
-const tabOrders = document.getElementById('tab-orders');
-if (tabMenu) tabMenu.onclick = () => switchView('menu');
-if (tabOrders) tabOrders.onclick = () => switchView('orders');
+// ---------- Вкладки ----------
+document.getElementById('tab-menu').onclick = () => switchView('menu');
+document.getElementById('tab-orders').onclick = () => switchView('orders');
+document.getElementById('tab-admin').onclick = () => switchView('admin');
 
 function switchView(view) {
     const menuSection = document.getElementById('menu');
     const ordersSection = document.getElementById('orders-section');
+    const adminSection = document.getElementById('admin-section');
+    
+    const tabMenu = document.getElementById('tab-menu');
+    const tabOrders = document.getElementById('tab-orders');
+    const tabAdmin = document.getElementById('tab-admin');
+    
+    menuSection.classList.add('hidden');
+    ordersSection.classList.add('hidden');
+    adminSection.classList.add('hidden');
+    tabMenu.classList.remove('active');
+    tabOrders.classList.remove('active');
+    tabAdmin.classList.remove('active');
     
     if (view === 'menu') {
         menuSection.classList.remove('hidden');
-        ordersSection.classList.add('hidden');
         tabMenu.classList.add('active');
-        tabOrders.classList.remove('active');
-    } else {
-        menuSection.classList.add('hidden');
+    } else if (view === 'orders') {
         ordersSection.classList.remove('hidden');
-        tabMenu.classList.remove('active');
         tabOrders.classList.add('active');
         renderOrders(state.orders);
+    } else if (view === 'admin') {
+        adminSection.classList.remove('hidden');
+        tabAdmin.classList.add('active');
+        renderAdminOrders();
     }
 }
 
+// ---------- Отрисовка заказов (Студент) ----------
 function renderOrders(orders) {
     const list = document.getElementById('orders-list');
     if (!list) return;
@@ -191,12 +239,14 @@ function renderOrders(orders) {
     }
 
     list.innerHTML = orders.map(order => {
-        const statusClass = `status-${order.status || 'new'}`;
-        const statusLabels = {
-            'new': 'Новый', 'accepted': 'Принят', 'cooking': 'Готовится',
-            'ready': 'Готов', 'picked_up': 'Выдан'
+        const statusMap = {
+            'new': { label: 'Новый', class: 'dot-new' },
+            'accepted': { label: 'Принят', class: 'dot-accepted' },
+            'cooking': { label: 'Готовится', class: 'dot-cooking' },
+            'ready': { label: 'Готов', class: 'dot-ready' },
+            'picked_up': { label: 'Выдан', class: 'dot-picked_up' }
         };
-        
+        const currentStatus = statusMap[order.status] || statusMap['new'];
         const itemsHtml = order.items.map(i => `
             <div class="order-item">
                 <span>${i.name} × ${i.qty}</span>
@@ -204,31 +254,96 @@ function renderOrders(orders) {
             </div>
         `).join('');
 
-        // Возвращаем разметку карточки
         return `
-            <div class="order-card ${statusClass}">
+            <div class="order-card">
                 <div class="order-header">
-                    <span>Заказ #${order.id}</span>
-                    <span class="order-status">${statusLabels[order.status] || order.status}</span>
+                    <span>Заказ #${order.id} <br><small style="font-weight:normal; color:var(--hint); font-size:12px;">${order.date}</small></span>
+                    <div class="order-status">
+                        <span class="status-dot ${currentStatus.class}"></span>
+                        ${currentStatus.label}
+                    </div>
                 </div>
-                
-                <div style="font-size: 13px; color: #888; margin-bottom: 10px;">
-                    ⏱ Ожидание: ~${Math.floor(Math.random() * 10) + 5} мин. (Позиция в очереди: ${Math.floor(Math.random() * 3) + 1})
-                </div>
-
                 ${itemsHtml}
-                
-                <div class="order-item" style="margin-top:8px; font-weight:bold; color: var(--text);">
+                <div class="order-item" style="margin-top:12px; font-weight:bold; color: var(--text); font-size: 15px;">
                     <span>Итого:</span>
                     <span>${fmtPrice(order.total)}</span>
                 </div>
-
-                <button class="repeat-btn" data-id="${order.id}" style="margin-top:10px; width:100%; padding:10px; border:none; border-radius:8px; background:#f39c12; color:#fff; cursor:pointer; font-weight:bold; font-size:14px;">
-                    🔄 Повторить этот заказ
-                </button>
+                <button class="repeat-btn" data-order-id="${order.id}">Повторить заказ</button>
             </div>
         `;
     }).join('');
+
+    document.querySelectorAll('.repeat-btn').forEach(btn => {
+        btn.onclick = () => {
+            const orderId = Number(btn.dataset.orderId);
+            const order = state.orders.find(o => o.id === orderId);
+            if (order) {
+                state.cart = JSON.parse(JSON.stringify(order.items));
+                renderCart();
+                switchView('menu');
+                if (tg) tg.showAlert('Блюда добавлены в корзину!');
+                else alert('Блюда добавлены в корзину!');
+            }
+        };
+    });
+}
+
+// ---------- Отрисовка заказов (Админ) ----------
+function renderAdminOrders() {
+    const list = document.getElementById('admin-orders-list');
+    if (!list) return;
+
+    if (state.orders.length === 0) {
+        list.innerHTML = '<p>Заказов нет.</p>';
+        return;
+    }
+
+    list.innerHTML = state.orders.map(order => {
+        const itemsHtml = order.items.map(i => `<div class="order-item"><span>${i.name} × ${i.qty}</span></div>`).join('');
+        
+        // Выпадающий список для смены статуса
+        const statusOptions = [
+            { val: 'new', label: 'Новый' },
+            { val: 'accepted', label: 'Принят' },
+            { val: 'cooking', label: 'Готовится' },
+            { val: 'ready', label: 'Готов' },
+            { val: 'picked_up', label: 'Выдан' }
+        ];
+
+        const selectHtml = `
+            <select class="status-select" data-order-id="${order.id}" style="padding: 5px; border-radius: 5px; margin-top: 10px; width: 100%;">
+                ${statusOptions.map(opt => `<option value="${opt.val}" ${order.status === opt.val ? 'selected' : ''}>${opt.label}</option>`).join('')}
+            </select>
+        `;
+
+        return `
+            <div class="order-card" style="border-left: 4px solid #e74c3c;">
+                <div class="order-header">
+                    <span>Заказ #${order.id}</span>
+                    <span>${order.total} ₽</span>
+                </div>
+                ${itemsHtml}
+                <div style="margin-top: 10px;">
+                    <label style="font-size: 12px; color: var(--hint);">Изменить статус:</label>
+                    ${selectHtml}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    // Обработчик смены статуса
+    document.querySelectorAll('.status-select').forEach(select => {
+        select.onchange = (e) => {
+            const orderId = Number(e.target.dataset.orderId);
+            const newStatus = e.target.value;
+            const order = state.orders.find(o => o.id === orderId);
+            if (order) {
+                order.status = newStatus;
+                localStorage.setItem('canteen_orders', JSON.stringify(state.orders));
+                if (tg) tg.HapticFeedback?.impactOccurred('medium');
+            }
+        };
+    });
 }
 
 // ---------- ИИ-помощник ----------
@@ -277,25 +392,3 @@ if (aiForm) {
 // ---------- Старт ----------
 document.getElementById('greeting').textContent = `Привет, ${getUserName()}!`;
 loadMenu();
-// Логика для кнопки "Повторить заказ"
-document.addEventListener('click', (e) => {
-    if (e.target.classList.contains('repeat-btn')) {
-        const orderId = Number(e.target.dataset.id);
-        const order = state.orders.find(o => o.id === orderId);
-        
-        if (order && order.items) {
-            state.cart = []; // Очищаем текущую корзину
-            order.items.forEach(item => {
-                const existing = state.cart.find(i => i.id === item.id);
-                if (existing) existing.qty += item.qty;
-                else state.cart.push({ ...item }); // Копируем блюда
-            });
-            
-            renderCart(); // Обновляем корзину
-            switchView('menu'); // Перекидываем на экран меню
-            
-            if (tg) tg.showAlert('Заказ добавлен в корзину!');
-            else alert('Заказ добавлен в корзину!');
-        }
-    }
-});

@@ -261,3 +261,29 @@ header h1 { margin: 0 0 4px; font-size: 22px; }
     color: var(--hint);
     margin-bottom: 6px;
 }
+/* Стили для админ-панели */
+#admin-section h2 {
+    color: #e74c3c;
+}
+
+.stop-btn {
+    padding: 6px 10px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    transition: 0.2s;
+}
+
+.stop-btn:hover {
+    opacity: 0.8;
+}
+
+.status-select {
+    border: 1px solid var(--btn);
+    color: var(--text);
+    background: var(--card);
+    font-weight: bold;
+    cursor: pointer;
+}
