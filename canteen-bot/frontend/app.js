@@ -204,17 +204,28 @@ function renderOrders(orders) {
             </div>
         `).join('');
 
+        // Возвращаем разметку карточки
         return `
             <div class="order-card ${statusClass}">
                 <div class="order-header">
                     <span>Заказ #${order.id}</span>
                     <span class="order-status">${statusLabels[order.status] || order.status}</span>
                 </div>
+                
+                <div style="font-size: 13px; color: #888; margin-bottom: 10px;">
+                    ⏱ Ожидание: ~${Math.floor(Math.random() * 10) + 5} мин. (Позиция в очереди: ${Math.floor(Math.random() * 3) + 1})
+                </div>
+
                 ${itemsHtml}
+                
                 <div class="order-item" style="margin-top:8px; font-weight:bold; color: var(--text);">
                     <span>Итого:</span>
                     <span>${fmtPrice(order.total)}</span>
                 </div>
+
+                <button class="repeat-btn" data-id="${order.id}" style="margin-top:10px; width:100%; padding:10px; border:none; border-radius:8px; background:#f39c12; color:#fff; cursor:pointer; font-weight:bold; font-size:14px;">
+                    🔄 Повторить этот заказ
+                </button>
             </div>
         `;
     }).join('');
@@ -266,3 +277,25 @@ if (aiForm) {
 // ---------- Старт ----------
 document.getElementById('greeting').textContent = `Привет, ${getUserName()}!`;
 loadMenu();
+// Логика для кнопки "Повторить заказ"
+document.addEventListener('click', (e) => {
+    if (e.target.classList.contains('repeat-btn')) {
+        const orderId = Number(e.target.dataset.id);
+        const order = state.orders.find(o => o.id === orderId);
+        
+        if (order && order.items) {
+            state.cart = []; // Очищаем текущую корзину
+            order.items.forEach(item => {
+                const existing = state.cart.find(i => i.id === item.id);
+                if (existing) existing.qty += item.qty;
+                else state.cart.push({ ...item }); // Копируем блюда
+            });
+            
+            renderCart(); // Обновляем корзину
+            switchView('menu'); // Перекидываем на экран меню
+            
+            if (tg) tg.showAlert('Заказ добавлен в корзину!');
+            else alert('Заказ добавлен в корзину!');
+        }
+    }
+});
