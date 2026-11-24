@@ -18,28 +18,15 @@
         <div id="view-tabs">
             <button id="tab-menu" class="active">Меню</button>
             <button id="tab-orders">Мои заказы</button>
-            <button id="tab-admin" class="hidden" style="border-color: #e74c3c; color: #e74c3c;">Админ-панель</button>
+            <button id="tab-admin" class="hidden">Админ-панель</button>
         </div>
     </header>
 
     <main>
         <nav id="categories"></nav>
-        
         <section id="menu"></section>
-
-        <section id="orders-section" class="hidden">
-            <h2 style="margin-top: 10px;">Мои заказы</h2>
-            <div id="orders-list">
-                <p>Загрузка заказов...</p>
-            </div>
-        </section>
-
-        <section id="admin-section" class="hidden">
-            <h2 style="margin-top: 10px; color: #e74c3c;">Все заказы (Админ)</h2>
-            <div id="admin-orders-list">
-                <p>Заказов пока нет.</p>
-            </div>
-        </section>
+        <section id="orders-section" class="hidden"><div id="orders-list"></div></section>
+        <section id="admin-section" class="hidden"><div id="admin-orders-list"></div></section>
 
         <aside id="cart" class="hidden">
             <h2>Корзина</h2>
@@ -51,17 +38,10 @@
 
     <button id="ai-toggle" title="Спросить у шефа">👨‍🍳</button>
     <div id="ai-panel" class="hidden">
-        <div id="ai-header">
-            <span>Спросить у шефа</span>
-            <button id="ai-close">✕</button>
-        </div>
+        <div id="ai-header"><span>Спросить у шефа</span><button id="ai-close">✕</button></div>
         <div id="ai-messages"></div>
-        <form id="ai-form">
-            <input type="text" id="ai-input" placeholder="Что посоветуешь до 300₽?" autocomplete="off">
-            <button type="submit">→</button>
-        </form>
+        <form id="ai-form"><input type="text" id="ai-input" placeholder="Что посоветуешь?" autocomplete="off"><button type="submit">→</button></form>
     </div>
-
     <script src="/static/app.js"></script>
 </body>
 </html>
