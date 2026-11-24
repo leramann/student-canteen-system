@@ -212,8 +212,38 @@ document.getElementById('checkout-btn').onclick = () => {
     renderCart();
     switchView('orders');
     if (tg) tg.showAlert(`Заказ #${newOrder.id} оформлен!`);
+    
+    // ВОТ ЭТА СТРОЧКА ЗАПУСКАЕТ СМЕНУ СТАТУСОВ!
+    simulateStatus(newOrder.id); 
 };
+// Функция смены статусов по таймеру
+function simulateStatus(orderId) {
+    // Расписание: через сколько секунд какой статус поставить
+    const timeline = [
+        { status: 'accepted', delay: 5000 },    // Через 5 сек - Принят
+        { status: 'cooking', delay: 10000 },    // Через 10 сек - Готовится
+        { status: 'ready', delay: 15000 },      // Через 15 сек - Готов
+        { status: 'picked_up', delay: 25000 }   // Через 25 сек (15+10) - Выдан
+    ];
 
+    timeline.forEach(item => {
+        setTimeout(() => {
+            const order = state.orders.find(o => o.id === orderId);
+            if (order && order.status !== 'picked_up') {
+                order.status = item.status;
+                localStorage.setItem('canteen_orders', JSON.stringify(state.orders));
+                
+                // Перерисовываем экраны, если они открыты
+                if (!document.getElementById('orders-section').classList.contains('hidden')) {
+                    renderOrders(state.orders);
+                }
+                if (!document.getElementById('admin-section').classList.contains('hidden')) {
+                    renderAdminOrders();
+                }
+            }
+        }, item.delay);
+    });
+}
 document.getElementById('tab-menu').onclick = () => switchView('menu');
 document.getElementById('tab-orders').onclick = () => switchView('orders');
 document.getElementById('tab-admin').onclick = () => switchView('admin');
@@ -265,7 +295,7 @@ function renderOrders(orders) {
 
         return `
             <div class="order-card">
-                <div class="order-header">
+                 <div class="order-card ${order.status === 'picked_up' ? 'order-completed' : ''}">
                     <span>Заказ #${order.id} <br><small style="font-weight:normal; color:var(--hint); font-size:12px;">${order.date}</small></span>
                     <div class="order-status"><span class="status-dot ${currentStatus.class}"></span>${currentStatus.label}</div>
                 </div>
