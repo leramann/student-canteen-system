@@ -9,7 +9,8 @@ const state = {
     items: [],
     cart: [],
     orders: JSON.parse(localStorage.getItem('canteen_orders')) || [],
-    stopList: JSON.parse(localStorage.getItem('canteen_stoplist')) || [], // Блюда, снятые с продажи
+    stopList: JSON.parse(localStorage.getItem('canteen_stoplist')) || [],
+    favorites: JSON.parse(localStorage.getItem('canteen_favorites')) || [], // Массив любимых блюд
     activeCategory: 'all',
     role: 'student', // 'student' или 'worker'
 };
@@ -28,7 +29,6 @@ roleBtn.onclick = () => {
         state.role = 'worker';
         roleBtn.textContent = 'Я студент';
         document.getElementById('tab-admin').classList.remove('hidden');
-        document.getElementById('cart').classList.add('hidden'); // Скрываем корзину для сотрудника
         switchView('admin');
     } else {
         state.role = 'student';
@@ -36,7 +36,7 @@ roleBtn.onclick = () => {
         document.getElementById('tab-admin').classList.add('hidden');
         switchView('menu');
     }
-    renderMenu(); // Перерисовываем меню (чтобы появились/исчезли кнопки стоп-листа)
+    renderMenu();
 };
 
 // ---------- Загрузка меню ----------
@@ -53,8 +53,9 @@ async function loadMenu() {
 }
 
 function renderCategories() {
-    const cats = ['all', ...new Set(state.items.map(i => i.category || 'Другое'))];
-    const labels = { all: 'Все' };
+    // Добавляем категорию "Избранное" на первое место (после "Все")
+    const cats = ['all', 'favorites', ...new Set(state.items.map(i => i.category || 'Другое'))];
+    const labels = { all: 'Все', favorites: '❤️ Избранное' };
     const nav = document.getElementById('categories');
     if (!nav) return;
     nav.innerHTML = '';
@@ -76,11 +77,16 @@ function renderMenu() {
     if (!menu) return;
     menu.innerHTML = '';
     
-    // Фильтруем блюда: студенты не видят то, что в стоп-листе. Сотрудники видят всё.
-    let filtered = state.activeCategory === 'all'
-        ? state.items
-        : state.items.filter(i => String(i.category) === String(state.activeCategory));
+    let filtered = state.items;
 
+    // Фильтрация по категории
+    if (state.activeCategory === 'favorites') {
+        filtered = filtered.filter(i => state.favorites.includes(i.id));
+    } else if (state.activeCategory !== 'all') {
+        filtered = filtered.filter(i => String(i.category) === String(state.activeCategory));
+    }
+
+    // Студенты не видят стоп-лист
     if (state.role === 'student') {
         filtered = filtered.filter(i => !state.stopList.includes(i.id));
     }
@@ -89,12 +95,13 @@ function renderMenu() {
         const card = document.createElement('div');
         card.className = 'card';
         const imgSrc = item.image_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=150';
+        const isFavorite = state.favorites.includes(item.id);
         
-        // Если это сотрудник, показываем кнопку стоп-листа
-        let adminBtnHtml = '';
+        // Если сотрудник, добавляем кнопку стоп-листа
+        let stopBtnHtml = '';
         if (state.role === 'worker') {
             const isStopped = state.stopList.includes(item.id);
-            adminBtnHtml = `<button class="stop-btn" data-id="${item.id}" style="margin-left: 10px; background: ${isStopped ? '#e74c3c' : '#f39c12'}; color: white;">
+            stopBtnHtml = `<button class="stop-btn" data-id="${item.id}" style="background: ${isStopped ? '#e74c3c' : '#f39c12'}; color: white; margin-top: 5px; width: 100%;">
                 ${isStopped ? 'Вернуть в продажу' : 'В стоп-лист'}
             </button>`;
         }
@@ -102,42 +109,64 @@ function renderMenu() {
         card.innerHTML = `
             <img src="${imgSrc}" onerror="this.src='https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=150'" alt="${item.name}">
             <div class="card-body">
-                <div class="card-name">${item.name}</div>
+                <div class="card-title-row">
+                    <div class="card-name">${item.name}</div>
+                    <button class="heart-btn ${isFavorite ? 'active' : ''}" data-id="${item.id}">
+                        ${isFavorite ? '❤️' : '🤍'}
+                    </button>
+                </div>
                 <div class="card-desc">${item.description || ''}</div>
-                <div class="card-footer">
-                    <span class="card-price">${fmtPrice(item.price)}</span>
-                    <div style="display:flex;">
-                        ${state.role === 'student' ? `<button data-id="${item.id}">В корзину</button>` : ''}
-                        ${adminBtnHtml}
+                <div class="card-footer" style="flex-direction: column; align-items: stretch; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="card-price">${fmtPrice(item.price)}</span>
+                        <button class="add-to-cart-btn" data-id="${item.id}">В корзину</button>
                     </div>
+                    ${stopBtnHtml}
                 </div>
             </div>
         `;
         
-        if (state.role === 'student') {
-            card.querySelector('button').onclick = () => addToCart(item);
-        } else {
-            const stopBtn = card.querySelector('.stop-btn');
-            stopBtn.onclick = () => toggleStopList(item.id);
+        // Обработчик добавления в корзину (доступен всем)
+        card.querySelector('.add-to-cart-btn').onclick = () => addToCart(item);
+        
+        // Обработчик сердечка
+        const heartBtn = card.querySelector('.heart-btn');
+        heartBtn.onclick = () => toggleFavorite(item.id);
+        
+        // Обработчик стоп-листа
+        if (state.role === 'worker') {
+            card.querySelector('.stop-btn').onclick = () => toggleStopList(item.id);
         }
+        
         menu.appendChild(card);
     });
 }
 
-// ---------- Стоп-лист (для сотрудника) ----------
+// ---------- Избранное ----------
+function toggleFavorite(itemId) {
+    if (state.favorites.includes(itemId)) {
+        state.favorites = state.favorites.filter(id => id !== itemId);
+    } else {
+        state.favorites.push(itemId);
+    }
+    localStorage.setItem('canteen_favorites', JSON.stringify(state.favorites));
+    renderMenu(); // Обновляем экран, чтобы сердечко закрасилось
+    if (tg) tg.HapticFeedback?.impactOccurred('light');
+}
+
+// ---------- Стоп-лист ----------
 function toggleStopList(itemId) {
     if (state.stopList.includes(itemId)) {
-        state.stopList = state.stopList.filter(id => id !== itemId); // Убираем из стоп-листа
+        state.stopList = state.stopList.filter(id => id !== itemId);
     } else {
-        state.stopList.push(itemId); // Добавляем в стоп-лист
+        state.stopList.push(itemId);
     }
     localStorage.setItem('canteen_stoplist', JSON.stringify(state.stopList));
-    renderMenu(); // Обновляем экран
+    renderMenu();
 }
 
 // ---------- Корзина ----------
 function addToCart(item) {
-    if (state.role === 'worker') return; // Сотрудник не может добавить в корзину
     const existing = state.cart.find(i => i.id === item.id);
     if (existing) existing.qty += 1;
     else state.cart.push({ ...item, qty: 1 });
@@ -155,8 +184,7 @@ function renderCart() {
         cart.classList.add('hidden');
         return;
     }
-    if (state.role === 'worker') return; // Скрываем корзину для сотрудника
-
+    
     cart.classList.remove('hidden');
     list.innerHTML = '';
     let sum = 0;
@@ -171,7 +199,7 @@ function renderCart() {
 
 // ---------- Оформление заказа ----------
 document.getElementById('checkout-btn').onclick = () => {
-    if (state.cart.length === 0 || state.role === 'worker') return;
+    if (state.cart.length === 0) return;
     const total = state.cart.reduce((s, i) => s + i.price * i.qty, 0);
     
     const newOrder = {
@@ -301,7 +329,6 @@ function renderAdminOrders() {
     list.innerHTML = state.orders.map(order => {
         const itemsHtml = order.items.map(i => `<div class="order-item"><span>${i.name} × ${i.qty}</span></div>`).join('');
         
-        // Выпадающий список для смены статуса
         const statusOptions = [
             { val: 'new', label: 'Новый' },
             { val: 'accepted', label: 'Принят' },
@@ -311,7 +338,7 @@ function renderAdminOrders() {
         ];
 
         const selectHtml = `
-            <select class="status-select" data-order-id="${order.id}" style="padding: 5px; border-radius: 5px; margin-top: 10px; width: 100%;">
+            <select class="status-select" data-order-id="${order.id}">
                 ${statusOptions.map(opt => `<option value="${opt.val}" ${order.status === opt.val ? 'selected' : ''}>${opt.label}</option>`).join('')}
             </select>
         `;
@@ -331,7 +358,6 @@ function renderAdminOrders() {
         `;
     }).join('');
 
-    // Обработчик смены статуса
     document.querySelectorAll('.status-select').forEach(select => {
         select.onchange = (e) => {
             const orderId = Number(e.target.dataset.orderId);
