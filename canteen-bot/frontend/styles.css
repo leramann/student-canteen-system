@@ -261,3 +261,19 @@ header h1 { margin: 0 0 4px; font-size: 22px; }
 #ai-form { display: flex; gap: 8px; padding: 12px 16px 24px; border-top: 1px solid #eee; }
 #ai-input { flex: 1; padding: 10px 14px; border-radius: 20px; border: 1px solid #ccc; font-size: 14px; }
 #ai-form button { padding: 0 16px; border: none; border-radius: 20px; background: var(--btn); color: var(--btn-text); cursor: pointer; font-size: 18px; }
+/* Стили для блюд в стоп-листе */
+.card.out-of-stock {
+    opacity: 0.6;
+    filter: grayscale(80%);
+}
+
+.card.out-of-stock img {
+    filter: blur(1px);
+}
+
+.add-to-cart-btn.disabled {
+    background: #ccc !important;
+    color: #777 !important;
+    cursor: not-allowed !important;
+    box-shadow: none !important;
+}

@@ -76,25 +76,37 @@ function renderMenu() {
     } else if (state.activeCategory !== 'all') {
         filtered = filtered.filter(i => String(i.category) === String(state.activeCategory));
     }
-    if (state.role === 'student') {
-        filtered = filtered.filter(i => !state.stopList.includes(i.id));
-    }
+
+    // МЫ УБРАЛИ ФИЛЬТРАЦИЮ СТОП-ЛИСТА ДЛЯ СТУДЕНТОВ. Теперь они видят всё.
 
     filtered.forEach(item => {
         const card = document.createElement('div');
         card.className = 'card';
+        
+        const isStopped = state.stopList.includes(item.id);
         const imgSrc = item.image_url || 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=150';
         const isFavorite = state.favorites.includes(item.id);
         
+        // Если блюдо в стоп-листе, делаем карточку серой
+        if (isStopped) {
+            card.classList.add('out-of-stock');
+        }
+
         let stopBtnHtml = '';
         if (state.role === 'worker') {
-            const isStopped = state.stopList.includes(item.id);
             stopBtnHtml = `<button class="stop-btn" data-id="${item.id}" style="background: ${isStopped ? '#e74c3c' : '#f39c12'};">
                 ${isStopped ? 'Вернуть' : 'В стоп'}
             </button>`;
         }
 
-        // Верстка карточки под новые стили
+        // Кнопка "В корзину" или "Нет в наличии"
+        let cartBtnHtml = '';
+        if (isStopped) {
+            cartBtnHtml = `<button class="add-to-cart-btn disabled" disabled>Нет в наличии</button>`;
+        } else {
+            cartBtnHtml = `<button class="add-to-cart-btn" data-id="${item.id}">В корзину</button>`;
+        }
+
         card.innerHTML = `
             <img src="${imgSrc}" onerror="this.src='https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=150'" alt="${item.name}">
             <div class="card-body">
@@ -111,13 +123,18 @@ function renderMenu() {
                     <span class="card-price">${fmtPrice(item.price)}</span>
                     <div style="display:flex; gap: 8px; align-items:center;">
                         ${stopBtnHtml}
-                        <button class="add-to-cart-btn" data-id="${item.id}">В корзину</button>
+                        ${cartBtnHtml}
                     </div>
                 </div>
             </div>
         `;
         
-        card.querySelector('.add-to-cart-btn').onclick = () => addToCart(item);
+        // Обработчик добавления в корзину (только если не в стоп-листе)
+        const addBtn = card.querySelector('.add-to-cart-btn');
+        if (!isStopped) {
+            addBtn.onclick = () => addToCart(item);
+        }
+
         card.querySelector('.heart-btn').onclick = () => toggleFavorite(item.id);
         if (state.role === 'worker') {
             card.querySelector('.stop-btn').onclick = () => toggleStopList(item.id);
