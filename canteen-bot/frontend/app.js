@@ -5,7 +5,11 @@ if (tg) {
     if (tg.setHeaderColor) tg.setHeaderColor('secondary_bg_color');
 }
 
-const state = { items: [], cart: [], orders: [], adminItems: [], editingMenuItem: null, role: null, view: 'menu', activeCategory: 'all' };
+const savedFavorites = (() => {
+    try { return JSON.parse(localStorage.getItem('canteen_favorites') || '[]'); }
+    catch { return []; }
+})();
+const state = { items: [], cart: [], orders: [], adminItems: [], editingMenuItem: null, role: null, view: 'menu', activeCategory: 'all', favorites: savedFavorites };
 const STATUS_LABELS = {
     new: 'Новый', accepted: 'Принят', cooking: 'Готовится', ready: 'Готов',
     picked_up: 'Выдан', cancelled: 'Отменён',
@@ -62,6 +66,12 @@ function configureTabs() {
     const adminTab = byId('tab-admin-menu');
     if (['staff', 'admin'].includes(state.role)) staffTab.classList.remove('hidden');
     if (state.role === 'admin') adminTab.classList.remove('hidden');
+    const roleLabels = { student: 'Студент', staff: 'Сотрудник столовой', admin: 'Администратор' };
+    const roleIndicator = byId('role-indicator');
+    if (roleIndicator && roleLabels[state.role]) {
+        roleIndicator.textContent = `Вы вошли как: ${roleLabels[state.role]}`;
+        roleIndicator.classList.remove('hidden');
+    }
 }
 
 async function loadMenu() {
@@ -80,10 +90,11 @@ function renderCategories() {
     const nav = byId('categories');
     if (!nav) return;
     nav.replaceChildren();
-    const categories = ['all', ...new Set(state.items.map(item => item.category || 'Другое'))];
+    const categories = ['all', 'favorites', ...new Set(state.items.map(item => item.category || 'Другое'))];
+    const labels = { all: 'Все', favorites: '❤️ Избранное' };
     for (const category of categories) {
         const button = document.createElement('button');
-        button.textContent = category === 'all' ? 'Все' : category;
+        button.textContent = labels[category] || category;
         button.classList.toggle('active', state.activeCategory === category);
         button.addEventListener('click', () => {
             state.activeCategory = category;
@@ -98,7 +109,10 @@ function renderMenu() {
     const menu = byId('menu');
     menu.replaceChildren();
     const items = state.activeCategory === 'all'
-        ? state.items : state.items.filter(item => item.category === state.activeCategory);
+        ? state.items
+        : state.activeCategory === 'favorites'
+            ? state.items.filter(item => state.favorites.includes(Number(item.id)))
+            : state.items.filter(item => item.category === state.activeCategory);
     if (!items.length) {
         menu.textContent = 'В этой категории пока нет блюд.';
         return;
@@ -112,9 +126,18 @@ function renderMenu() {
         image.onerror = () => { image.removeAttribute('src'); };
         const body = document.createElement('div');
         body.className = 'card-body';
+        const titleRow = document.createElement('div');
+        titleRow.className = 'card-title-row';
         const name = document.createElement('div');
         name.className = 'card-name';
         name.textContent = item.name;
+        const favorite = document.createElement('button');
+        favorite.type = 'button';
+        favorite.className = 'heart-btn';
+        favorite.textContent = state.favorites.includes(Number(item.id)) ? '❤️' : '🤍';
+        favorite.setAttribute('aria-label', state.favorites.includes(Number(item.id)) ? 'Убрать из избранного' : 'Добавить в избранное');
+        favorite.addEventListener('click', () => toggleFavorite(Number(item.id)));
+        titleRow.append(name, favorite);
         const description = document.createElement('div');
         description.className = 'card-desc';
         description.textContent = item.description || '';
@@ -127,10 +150,19 @@ function renderMenu() {
         addButton.textContent = 'В корзину';
         addButton.addEventListener('click', () => addToCart(item));
         footer.append(price, addButton);
-        body.append(name, description, footer);
+        body.append(titleRow, description, footer);
         card.append(image, body);
         menu.appendChild(card);
     }
+}
+
+function toggleFavorite(itemId) {
+    state.favorites = state.favorites.includes(itemId)
+        ? state.favorites.filter(id => id !== itemId)
+        : [...state.favorites, itemId];
+    localStorage.setItem('canteen_favorites', JSON.stringify(state.favorites));
+    renderMenu();
+    renderCategories();
 }
 
 function addToCart(item) {
