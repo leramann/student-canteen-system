@@ -9,7 +9,7 @@ const savedFavorites = (() => {
     try { return JSON.parse(localStorage.getItem('canteen_favorites') || '[]'); }
     catch { return []; }
 })();
-const state = { items: [], cart: [], orders: [], adminItems: [], editingMenuItem: null, role: null, view: 'menu', activeCategory: 'all', favorites: savedFavorites };
+const state = { items: [], cart: [], orders: null, myOrdersLoading: false, managedOrders: null, managedOrdersLoading: false, adminItems: [], editingMenuItem: null, role: null, view: 'menu', activeCategory: 'all', favorites: savedFavorites };
 const STATUS_LABELS = {
     new: 'Новый', accepted: 'Принят', cooking: 'Готовится', ready: 'Готов',
     picked_up: 'Выдан', cancelled: 'Отменён',
@@ -147,8 +147,15 @@ function renderMenu() {
         price.className = 'card-price';
         price.textContent = fmtPrice(item.price);
         const addButton = document.createElement('button');
-        addButton.textContent = 'В корзину';
-        addButton.addEventListener('click', () => addToCart(item));
+        if (item.is_available === false) {
+            addButton.textContent = 'Закончилось';
+            addButton.disabled = true;
+            addButton.classList.add('unavailable-button');
+            card.classList.add('card-unavailable');
+        } else {
+            addButton.textContent = 'В корзину';
+            addButton.addEventListener('click', () => addToCart(item));
+        }
         footer.append(price, addButton);
         body.append(titleRow, description, footer);
         card.append(image, body);
@@ -166,6 +173,10 @@ function toggleFavorite(itemId) {
 }
 
 function addToCart(item) {
+    if (item.is_available === false) {
+        showMessage('Это блюдо закончилось.', 'warning');
+        return;
+    }
     const existing = state.cart.find(row => row.id === item.id);
     if (existing) existing.qty += 1;
     else state.cart.push({ ...item, qty: 1 });
@@ -292,15 +303,26 @@ function addOrderCard(container, order, { canRepeat = false, canChange = false }
 
 async function loadMyOrders() {
     const list = byId('orders-list');
-    list.textContent = 'Загрузка заказов…';
+    if (state.myOrdersLoading) return;
+    state.myOrdersLoading = true;
     try {
         const data = await apiFetch('/api/my/orders');
-        state.orders = data.orders || [];
-        list.replaceChildren();
-        if (!state.orders.length) list.textContent = 'У вас пока нет заказов.';
-        for (const order of state.orders) addOrderCard(list, order, { canRepeat: state.role === 'student' });
+        const orders = data.orders || [];
+        const unchanged = state.orders !== null
+            && JSON.stringify(state.orders) === JSON.stringify(orders);
+        if (!unchanged) {
+            const scrollPosition = window.scrollY;
+            state.orders = orders;
+            list.replaceChildren();
+            if (!orders.length) list.textContent = 'У вас пока нет заказов.';
+            for (const order of orders) addOrderCard(list, order, { canRepeat: state.role === 'student' });
+            requestAnimationFrame(() => window.scrollTo(0, scrollPosition));
+        }
     } catch (error) {
-        list.textContent = error.message;
+        if (state.orders === null) list.textContent = error.message;
+        else showMessage(error.message, 'error');
+    } finally {
+        state.myOrdersLoading = false;
     }
 }
 
@@ -316,17 +338,29 @@ async function repeatOrder(orderId) {
 
 async function loadManagedOrders() {
     const list = byId('staff-orders-list');
-    list.textContent = 'Загрузка заказов…';
+    if (state.managedOrdersLoading) return;
+    state.managedOrdersLoading = true;
     const endpoint = state.role === 'admin' ? '/api/admin/orders' : '/api/staff/orders';
     try {
         const data = await apiFetch(endpoint);
-        list.replaceChildren();
         const orders = data.orders || [];
-        if (!orders.length) list.textContent = 'Активных заказов нет.';
-        for (const order of orders) addOrderCard(list, order, { canChange: true });
+        const unchanged = state.managedOrders !== null
+            && JSON.stringify(state.managedOrders) === JSON.stringify(orders);
+        if (!unchanged) {
+            const scrollPosition = window.scrollY;
+            list.replaceChildren();
+            if (!orders.length) list.textContent = 'Активных заказов нет.';
+            for (const order of orders) addOrderCard(list, order, { canChange: true });
+            state.managedOrders = orders;
+            requestAnimationFrame(() => window.scrollTo({ top: scrollPosition, behavior: 'instant' }));
+        }
         if (state.role === 'staff' || state.role === 'admin') await loadQueueForecast();
     } catch (error) {
-        list.textContent = error.message;
+        // Keep the current queue visible during temporary polling errors.
+        if (state.managedOrders === null) list.textContent = error.message;
+        else showMessage(error.message, 'error');
+    } finally {
+        state.managedOrdersLoading = false;
     }
 }
 
@@ -502,6 +536,7 @@ byId('ai-form').addEventListener('submit', async event => {
 });
 
 setInterval(() => {
+    if (document.visibilityState !== 'visible') return;
     if (state.view === 'orders') loadMyOrders();
     if (state.view === 'staff') loadManagedOrders();
 }, 5000);

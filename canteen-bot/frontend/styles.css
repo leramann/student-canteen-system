@@ -116,6 +116,21 @@ header h1 { margin: 0 0 4px; font-size: 22px; }
 
 .card-price { font-weight: 700; font-size: 16px; }
 
+.card-unavailable {
+    opacity: 0.76;
+}
+
+.unavailable-button,
+.unavailable-button:disabled {
+    padding: 6px 12px;
+    border: 1px solid #c7beb6;
+    border-radius: 8px;
+    background: #eee9e4;
+    color: #766e67;
+    cursor: not-allowed;
+    font-weight: 600;
+}
+
 /* Кнопки в карточке */
 .add-to-cart-btn {
     padding: 6px 12px;

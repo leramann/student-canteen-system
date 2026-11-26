@@ -59,7 +59,7 @@ def _decimal_json(value):
     return float(value) if isinstance(value, Decimal) else value
 
 
-def fetch_menu_from_db(available_only: bool = True) -> list[dict]:
+def fetch_menu_from_db(available_only: bool = False) -> list[dict]:
     where = "WHERE mi.is_available = 1" if available_only else ""
     with _db_connect() as conn, conn.cursor() as cursor:
         cursor.execute(
@@ -123,19 +123,28 @@ def _init_data_from_request(request: web.Request, payload: dict | None = None) -
 def _get_app_user(cursor, telegram_user: dict) -> dict:
     """Map verified Telegram ID to the existing users.identifier column."""
     telegram_id = str(telegram_user["id"])
+    configured_role = _configured_demo_role(telegram_id)
     cursor.execute(
         "SELECT user_id, full_name, role FROM users WHERE identifier = %s LIMIT 1",
         (telegram_id,),
     )
     user = cursor.fetchone()
     if user:
+        # Privileged roles are granted only by server-side Telegram-ID allowlists.
+        # Never accept a role supplied by the browser.
+        if configured_role and user["role"] != configured_role:
+            cursor.execute(
+                "UPDATE users SET role = %s WHERE user_id = %s",
+                (configured_role, user["user_id"]),
+            )
+            user["role"] = configured_role
         return user
     first = str(telegram_user.get("first_name", "")).strip()
     last = str(telegram_user.get("last_name", "")).strip()
     full_name = " ".join(part for part in (first, last) if part) or "Пользователь Telegram"
     cursor.execute(
-        "INSERT IGNORE INTO users (full_name, identifier, role) VALUES (%s, %s, 'student')",
-        (full_name[:150], telegram_id),
+        "INSERT IGNORE INTO users (full_name, identifier, role) VALUES (%s, %s, %s)",
+        (full_name[:150], telegram_id, configured_role or "student"),
     )
     cursor.execute(
         "SELECT user_id, full_name, role FROM users WHERE identifier = %s LIMIT 1",
@@ -145,6 +154,17 @@ def _get_app_user(cursor, telegram_user: dict) -> dict:
     if not user:
         raise web.HTTPInternalServerError(text="Не удалось создать профиль пользователя")
     return user
+
+
+def _configured_demo_role(telegram_id: str) -> str | None:
+    """Return a privileged role only for IDs explicitly configured by the owner."""
+    staff_ids = {value.strip() for value in os.getenv("STAFF_TELEGRAM_IDS", "").split(",") if value.strip()}
+    admin_ids = {value.strip() for value in os.getenv("ADMIN_TELEGRAM_IDS", "").split(",") if value.strip()}
+    if telegram_id in admin_ids:
+        return "admin"
+    if telegram_id in staff_ids:
+        return "staff"
+    return None
 
 
 def _authenticated_user(request: web.Request, payload: dict | None = None) -> dict:
@@ -184,6 +204,7 @@ async def health_handler(request: web.Request) -> web.Response:
 
 async def menu_handler(request: web.Request) -> web.Response:
     try:
+        # Keep unavailable dishes visible so students see why they cannot order them.
         return web.json_response({"items": fetch_menu_from_db()})
     except pymysql.MySQLError as exc:
         logger.exception("Ошибка загрузки меню")
@@ -544,7 +565,7 @@ async def ai_handler(request: web.Request) -> web.Response:
     query = str(payload.get("query", ""))[:500]
     cart = payload.get("cart", [])
     try:
-        answer = await get_ai_recommendation(query, fetch_menu_from_db(), cart)
+        answer = await get_ai_recommendation(query, fetch_menu_from_db(available_only=True), cart)
     except Exception as exc:
         logger.exception("Ошибка AI-рекомендации")
         raise web.HTTPServiceUnavailable(text="Рекомендации временно недоступны") from exc

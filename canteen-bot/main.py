@@ -46,22 +46,25 @@ async def command_start_handler(message: Message) -> None:
     )
 
 
-async def main() -> None:
+async def main(*, web_server_started: bool = False) -> None:
     from aiohttp import web
 
-    app = create_app()
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, WEB_HOST, WEB_PORT)
-    await site.start()
-    print(f"Сайт успешно запущен: http://localhost:{WEB_PORT}")
+    runner = None
+    if not web_server_started:
+        app = create_app()
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, WEB_HOST, WEB_PORT)
+        await site.start()
+        print(f"Сайт успешно запущен: http://localhost:{WEB_PORT}")
     print("Бот запущен и ожидает сообщения...")
 
     try:
         await dp.start_polling(bot)
     finally:
         try:
-            await runner.cleanup()
+            if runner is not None:
+                await runner.cleanup()
         finally:
             await bot.session.close()
 
